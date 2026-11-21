@@ -1,5 +1,15 @@
 const mongoose = require('mongoose');
 
+const mediaAssetItemSchema = new mongoose.Schema(
+  {
+    filename: { type: String, default: '' },
+    url: { type: String, default: '' },
+    fileId: { type: String, default: '' },
+    type: { type: String, default: 'photo' },
+  },
+  { _id: false }
+);
+
 const transactionSchema = new mongoose.Schema(
   {
     order_id: { type: String, required: true, unique: true, index: true },
@@ -20,14 +30,7 @@ const transactionSchema = new mongoose.Schema(
     print_file_id: { type: String, default: '' },
     print_status: { type: Number, default: 0 }, // 0 = antre, 1 = sudah dicetak
     created_at_wib: { type: String, required: true }, // Format YYYY-MM-DD HH:mm:ss (WIB)
-    media_assets: [
-      {
-        filename: String,
-        url: String,
-        fileId: String,
-        type: String,
-      },
-    ],
+    media_assets: { type: [mediaAssetItemSchema], default: [] },
   },
   { timestamps: true }
 );
