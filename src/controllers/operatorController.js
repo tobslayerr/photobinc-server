@@ -5,7 +5,9 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 
 const Transaction = require('../models/Transaction');
+const MediaAsset = require('../models/MediaAsset');
 const Frame = require('../models/Frame');
+const { deleteFileIds } = require('../services/mediaService');
 
 function withOrigParam(url) {
   if (!url) return '';
@@ -135,13 +137,51 @@ exports.getPrintQueue = async (req, res) => {
   }
 };
 
+// Tandai selesai cetak + langsung hapus file cetak fisik dari ImageKit.io
 exports.markPrinted = async (req, res) => {
   try {
     const orderId = String(req.body.order_id || '').trim();
     if (!orderId) return res.status(400).json({ success: false, message: 'order_id kosong' });
 
-    await Transaction.updateOne({ order_id: orderId }, { $set: { print_status: 1 } });
-    return res.json({ success: true });
+    const trx = await Transaction.findOne({ order_id: orderId });
+    if (!trx) return res.status(404).json({ success: false, message: 'Transaksi tidak ditemukan.' });
+
+    let deletedFromImageKit = false;
+    let fileIdToDelete = trx.print_file_id || '';
+
+    // Fallback: jika print_file_id kosong tapi print_url ada, cari di koleksi MediaAsset
+    if (!fileIdToDelete && trx.print_url) {
+      const cleanPrintUrl = trx.print_url.split('?')[0];
+      const asset = await MediaAsset.findOne({
+        $or: [{ url: cleanPrintUrl }, { order_id: orderId, type: 'print' }],
+      }).lean();
+      if (asset && asset.fileId) {
+        fileIdToDelete = asset.fileId;
+      }
+    }
+
+    if (fileIdToDelete) {
+      // Pengaman: pastikan fileId cetak tidak dipakai di galeri download/AR milik pengunjung
+      const clientGalleryFileIds = new Set(
+        (trx.media_assets || []).map((a) => a.fileId).filter(Boolean)
+      );
+
+      if (!clientGalleryFileIds.has(fileIdToDelete)) {
+        await deleteFileIds([fileIdToDelete]);
+        await MediaAsset.updateOne(
+          { fileId: fileIdToDelete },
+          { $set: { deleted_from_storage: true } }
+        );
+        deletedFromImageKit = true;
+      }
+    }
+
+    trx.print_status = 1;
+    trx.print_url = '';
+    trx.print_file_id = '';
+    await trx.save();
+
+    return res.json({ success: true, deletedFromImageKit });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }

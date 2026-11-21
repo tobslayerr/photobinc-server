@@ -223,13 +223,23 @@
     }
 
     async function markAsPrinted(orderId) {
-      await fetch('/operator/api/mark-printed', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order_id: orderId })
-      });
-      lastQueueSig = null;
-      fetchQueue();
+      if (!confirm('Pastikan foto sudah tercetak sempurna. File cetak akan langsung dihapus dari storage ImageKit. Lanjutkan?')) return;
+      try {
+        const res = await fetch('/operator/api/mark-printed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order_id: orderId })
+        });
+        const json = await res.json();
+        if (!json.success) {
+          alert(json.message || 'Gagal menandai selesai.');
+          return;
+        }
+        lastQueueSig = null;
+        fetchQueue();
+      } catch (e) {
+        alert('Koneksi gagal saat menandai selesai cetak.');
+      }
     }
 
     function printPhoto(btnEl, orderId, url, pkgName) {
