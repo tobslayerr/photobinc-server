@@ -2,12 +2,38 @@ const path = require('path');
 const Transaction = require('../models/Transaction');
 const MediaAsset = require('../models/MediaAsset');
 
+function isAllowedMediaUrl(rawUrl) {
+  try {
+    const u = new URL(rawUrl);
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
+    const ikHost = process.env.IMAGEKIT_URL_ENDPOINT ? new URL(process.env.IMAGEKIT_URL_ENDPOINT).hostname : '';
+    return u.hostname === 'ik.imagekit.io' || (ikHost && u.hostname === ikHost);
+  } catch {
+    return false;
+  }
+}
+
+function withImageKitOriginal(url) {
+  if (!url) return '';
+  try {
+    const u = new URL(url);
+    if (u.hostname === 'ik.imagekit.io') {
+      u.searchParams.set('tr', 'orig-true');
+      return u.toString();
+    }
+  } catch (_) {}
+  return url;
+}
+
 function withImageKitPreview(url, isImage) {
   if (!isImage || !url) return url;
-  if (process.env.IMAGEKIT_URL_ENDPOINT && url.startsWith(process.env.IMAGEKIT_URL_ENDPOINT)) {
-    const sep = url.includes('?') ? '&' : '?';
-    return `${url}${sep}tr=w-800,q-80,f-auto`;
-  }
+  try {
+    const u = new URL(url);
+    if (u.hostname === 'ik.imagekit.io') {
+      u.searchParams.set('tr', 'w-800,q-85,f-auto');
+      return u.toString();
+    }
+  } catch (_) {}
   return url;
 }
 
@@ -38,7 +64,6 @@ async function resolveSessionMedia(req) {
     }
   }
 
-  // Petakan filename -> URL publik ImageKit
   const urlMap = new Map();
   if (trx && Array.isArray(trx.media_assets)) {
     trx.media_assets.forEach((a) => {
@@ -79,10 +104,10 @@ async function resolveSessionMedia(req) {
     const isLive = /^live[-_]/i.test(clean) || ['mp4', 'webm', 'mov'].includes(ext);
     const isSlide = /^slide[-_]/i.test(clean) || (ext === 'gif' && !isRaw);
 
-    if (isLive) urlsLive.push({ file: clean, url: fullUrl, ext: ext || 'mp4' });
-    else if (isSlide) urlsGif.push({ file: clean, url: fullUrl, ext: 'gif' });
-    else if (isRaw) urlsRaw.push({ file: clean, url: fullUrl, ext: ext || 'jpg' });
-    else urlsFrame.push({ file: clean, url: fullUrl, ext: ext || 'jpg' });
+    if (isLive) urlsLive.push({ file: clean, url: withImageKitOriginal(fullUrl), ext: ext || 'mp4' });
+    else if (isSlide) urlsGif.push({ file: clean, url: withImageKitOriginal(fullUrl), ext: 'gif' });
+    else if (isRaw) urlsRaw.push({ file: clean, url: withImageKitOriginal(fullUrl), ext: ext || 'jpg' });
+    else urlsFrame.push({ file: clean, url: withImageKitOriginal(fullUrl), ext: ext || 'jpg' });
   }
 
   const isUploadComplete = urlsRaw.length > 0 && urlsFrame.length > 0;
@@ -194,7 +219,7 @@ exports.renderDownloadPage = async (req, res) => {
 exports.renderLiveArPage = async (req, res) => {
   try {
     const session = await resolveSessionMedia(req);
-    const frameUrls = session.urlsFrame.map((x) => x.url);
+    const frameUrls = session.urlsFrame.map((x) => `/api/ar-target?url=${encodeURIComponent(x.url)}`);
     const liveUrls = session.urlsLive.map((x) => x.url);
 
     return res.render('client/live-ar', {
@@ -205,5 +230,92 @@ exports.renderLiveArPage = async (req, res) => {
     });
   } catch (err) {
     return res.status(500).send(`Terjadi kesalahan memuat Live AR: ${err.message}`);
+  }
+};
+
+// FORCE DOWNLOAD FULL RESOLUSI (ANTI-PREVIEW & ANTI-CORS)
+exports.proxyDownload = async (req, res) => {
+  try {
+    const rawUrl = String(req.query.url || '').trim();
+    const aliasName = String(req.query.name || 'photobinc-media').replace(/[^a-zA-Z0-9._-]/g, '_');
+
+    if (!rawUrl || !isAllowedMediaUrl(rawUrl)) {
+      return res.status(400).send('URL media tidak valid.');
+    }
+
+    const origUrl = withImageKitOriginal(rawUrl);
+    const attachmentUrlObj = new URL(origUrl);
+    attachmentUrlObj.searchParams.set('ik-attachment', 'true');
+    const directAttachmentUrl = attachmentUrlObj.toString();
+
+    let contentLength = 0;
+    try {
+      const headRes = await fetch(origUrl, { method: 'HEAD' });
+      if (headRes.ok) {
+        contentLength = parseInt(headRes.headers.get('content-length') || '0', 10);
+      }
+    } catch (_) {}
+
+    const MAX_VERCEL_BYTES = 3800000; // 3.8 MB aman di bawah limit 4.5 MB Vercel
+
+    // File > 3.8 MB (misal Live Video 15 detik / Frame super besar): langsung redirect ke ImageKit orig-true + attachment
+    if (contentLength > MAX_VERCEL_BYTES) {
+      return res.redirect(302, directAttachmentUrl);
+    }
+
+    const upstream = await fetch(origUrl);
+    if (!upstream.ok) {
+      return res.redirect(302, directAttachmentUrl);
+    }
+
+    const buf = Buffer.from(await upstream.arrayBuffer());
+    if (buf.length > MAX_VERCEL_BYTES) {
+      return res.redirect(302, directAttachmentUrl);
+    }
+
+    res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${aliasName}"`);
+    res.setHeader('Content-Length', buf.length);
+    res.setHeader('Cache-Control', 'no-store');
+    return res.send(buf);
+  } catch (err) {
+    return res.status(500).send('Gagal mengunduh file: ' + err.message);
+  }
+};
+
+// SAME-ORIGIN PROXY GAMBAR TARGET WEBAR & THUMBNAIL OPERATOR (100% BEBAS CORS)
+exports.proxyArTarget = async (req, res) => {
+  try {
+    const rawUrl = String(req.query.url || '').trim();
+    const maxW = Math.min(1200, Math.max(300, parseInt(req.query.w || '900', 10) || 900));
+
+    if (!rawUrl || !isAllowedMediaUrl(rawUrl)) {
+      return res.status(400).send('URL gambar tidak valid.');
+    }
+
+    let fetchUrl = rawUrl;
+    try {
+      const u = new URL(rawUrl);
+      if (u.hostname === 'ik.imagekit.io') {
+        u.searchParams.set('tr', `w-${maxW},q-90,f-jpg`);
+        fetchUrl = u.toString();
+      }
+    } catch (_) {}
+
+    let imgRes = await fetch(fetchUrl);
+    if (!imgRes.ok) {
+      imgRes = await fetch(withImageKitOriginal(rawUrl));
+    }
+    if (!imgRes.ok) {
+      return res.status(imgRes.status).send('Gagal mengambil gambar dari storage.');
+    }
+
+    const buf = Buffer.from(await imgRes.arrayBuffer());
+    res.setHeader('Content-Type', imgRes.headers.get('content-type') || 'image/jpeg');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    return res.send(buf);
+  } catch (err) {
+    return res.status(500).send('Proxy gambar gagal: ' + err.message);
   }
 };

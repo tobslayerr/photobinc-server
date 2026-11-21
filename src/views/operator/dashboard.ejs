@@ -48,7 +48,7 @@
     .bg-cyan { background: #90dbf4; }
     .op-card-badge { background: #fff; border: 2px solid #111; padding: 2px 8px; border-radius: 6px; font-size: 12px; font-family: sans-serif; font-weight: bold; }
     .op-card-img-wrap { padding: 14px; background: #fafafa; border-bottom: 2px dashed #ccc; }
-    .op-card-img { width: 100%; height: 200px; background: #fff; border: 2px solid #111; object-fit: contain; padding: 5px; border-radius: 8px; }
+    .op-card-img { width: 100%; height: 200px; background: #fff; border: 2px solid #111; object-fit: contain; padding: 5px; border-radius: 8px; display: block; }
     .op-card-body { padding: 20px; flex-grow: 1; display: flex; flex-direction: column; text-align: center; }
     .op-pkg { font-family: 'Permanent Marker', cursive; font-size: 20px; margin: 0 0 5px; text-transform: uppercase; color: #111; }
     .op-price { font-family: 'Permanent Marker', cursive; font-size: 30px; color: #ef4444; margin: 5px 0 15px; }
@@ -61,6 +61,7 @@
       border-radius: 8px; box-shadow: 3px 3px 0px #111; flex: 1;
       display: flex; align-items: center; justify-content: center; gap: 5px;
     }
+    .op-btn:disabled { opacity: 0.7; cursor: wait; }
     .btn-green { background: #d0f4de; } .btn-green:hover { background: #00E676; }
     .btn-yellow { background: #fef08a; } .btn-yellow:hover { background: #facc15; }
     .btn-red { background: #ff99c8; } .btn-red:hover { background: #ff5757; color: #fff; }
@@ -68,6 +69,8 @@
     .btn-white { background: #fff; width: 100%; } .btn-white:hover { background: #111; color: #fff; }
     .op-btn:active { transform: translate(2px, 2px); box-shadow: 0 0 0 #111; }
     .op-empty { grid-column: 1 / -1; text-align: center; padding: 45px; background: #fff; border: 3px dashed #111; font-family: 'Permanent Marker', cursive; font-size: 22px; color: #666; border-radius: 12px; }
+    .spin-anim { animation: spin 1s linear infinite; display: inline-block; }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
     @media (max-width: 900px) {
       .op-wrapper { padding: 18px; }
       .op-header { flex-direction: column; text-align: center; gap: 12px; }
@@ -106,6 +109,9 @@
       return String(s || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
     }
 
+    let lastPaymentSig = null;
+    let lastQueueSig = null;
+
     async function fetchPayments() {
       try {
         const res = await fetch('/operator/api/payment-queue?nocache=' + Date.now(), { cache: 'no-store' });
@@ -113,9 +119,14 @@
         const data = await res.json();
         const container = document.getElementById('op-payment-container');
 
-        if (data.success && data.data.length > 0) {
-          document.getElementById('op-pay-counter').innerHTML = `<span class="status-red">${data.data.length}</span> Menunggu`;
-          container.innerHTML = data.data.map(item => `
+        const list = (data.success && Array.isArray(data.data)) ? data.data : [];
+        const sig = list.map(i => i.order_id + '|' + i.amount).join(';;');
+        if (sig === lastPaymentSig) return;
+        lastPaymentSig = sig;
+
+        if (list.length > 0) {
+          document.getElementById('op-pay-counter').innerHTML = `<span class="status-red">${list.length}</span> Menunggu`;
+          container.innerHTML = list.map(item => `
             <div class="op-card">
               <div class="op-card-header bg-yellow">
                 <span>ORDER #${escHtml(item.order_id)}</span>
@@ -147,6 +158,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ order_id: orderId, payment_method: method })
       });
+      lastPaymentSig = null;
       fetchPayments();
     }
 
@@ -157,6 +169,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ order_id: orderId })
       });
+      lastPaymentSig = null;
       fetchPayments();
     }
 
@@ -167,22 +180,32 @@
         const data = await res.json();
         const container = document.getElementById('op-queue-container');
 
-        if (data.success && data.data.length > 0) {
-          document.getElementById('op-counter').innerHTML = `Sisa Antrean: <span class="status-cyan">${data.data.length}</span>`;
-          container.innerHTML = data.data.map(item => `
+        const list = (data.success && Array.isArray(data.data)) ? data.data : [];
+        const sig = list.map(i => i.order_id + '|' + i.print_url).join(';;');
+        if (sig === lastQueueSig) return;
+        lastQueueSig = sig;
+
+        if (list.length > 0) {
+          document.getElementById('op-counter').innerHTML = `Sisa Antrean: <span class="status-cyan">${list.length}</span>`;
+          container.innerHTML = list.map(item => `
             <div class="op-card" id="card-${escHtml(item.order_id)}">
               <div class="op-card-header bg-cyan">
                 <span>ORDER #${escHtml(item.order_id)}</span>
                 <span class="op-card-badge"><i class="ri-printer-fill"></i> Antre</span>
               </div>
               <div class="op-card-img-wrap">
-                <img src="${escHtml(item.print_url)}" class="op-card-img" />
+                <img
+                  src="${escHtml(item.thumb_url || item.print_url)}"
+                  onerror="this.onerror=null; this.src='${escHtml(item.print_url)}';"
+                  class="op-card-img"
+                  alt="Preview Cetak"
+                />
               </div>
               <div class="op-card-body">
                 <h3 class="op-pkg">${escHtml(item.package_name)}</h3>
                 <div><span class="op-frame-badge">${escHtml(item.frame_info)}</span></div>
                 <div class="btn-group-vertical">
-                  <button class="op-btn btn-cyan" onclick="printPhoto('${escHtml(item.order_id)}', '${escHtml(item.print_url)}', '${escHtml(item.package_name)}')">
+                  <button class="op-btn btn-cyan" onclick="printPhoto(this, '${escHtml(item.order_id)}', '${escHtml(item.print_url)}', '${escHtml(item.package_name)}')">
                     <i class="ri-printer-line"></i> CETAK SEKARANG
                   </button>
                   <button class="op-btn btn-white" onclick="markAsPrinted('${escHtml(item.order_id)}')">
@@ -205,50 +228,67 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ order_id: orderId })
       });
+      lastQueueSig = null;
       fetchQueue();
     }
 
-    function printPhoto(orderId, url, pkgName) {
-      const oldFrame = document.getElementById('pb-print-frame');
-      if (oldFrame) oldFrame.remove();
+    function printPhoto(btnEl, orderId, url, pkgName) {
+      const origHtml = btnEl.innerHTML;
+      btnEl.innerHTML = '<i class="ri-loader-4-line spin-anim"></i> MEMUAT FOTO...';
+      btnEl.disabled = true;
 
-      const printFrame = document.createElement('iframe');
-      printFrame.id = 'pb-print-frame';
-      printFrame.style.cssText = 'position:fixed;top:-9999px;left:-9999px;border:none;';
-      document.body.appendChild(printFrame);
+      const preloader = new Image();
+      preloader.onload = function() {
+        btnEl.innerHTML = origHtml;
+        btnEl.disabled = false;
 
-      const doc = printFrame.contentWindow.document;
-      const isStrip = pkgName.toLowerCase().includes('strip');
-      const pageW = isStrip ? '102mm' : '210mm';
-      const pageH = isStrip ? '152mm' : '297mm';
-      const safeW = isStrip ? '96mm' : '204mm';
-      const safeH = isStrip ? '131mm' : '276mm';
-      const cutGuideStyle = isStrip ? 'border: 1px dashed #ccc;' : 'display: none;';
+        const oldFrame = document.getElementById('pb-print-frame');
+        if (oldFrame) oldFrame.remove();
 
-      doc.open();
-      doc.write(`<!DOCTYPE html><html><head><title>Print Operator</title>
-        <style>
-          @page { size: ${pageW} ${pageH}; margin: 0 !important; }
-          html, body {
-            margin: 0 !important; padding: 0 !important; background: #fff !important;
-            width: ${pageW} !important; height: ${pageH} !important; overflow: hidden;
-            display: flex; justify-content: center; align-items: flex-start;
-          }
-          .print-box-mutlak { width: ${safeW} !important; height: ${safeH} !important; margin-top: 3mm !important; position: relative; background: #fff; }
-          img { width: 100% !important; height: 100% !important; object-fit: contain !important; display: block !important; }
-          .cut-guide { position: absolute; top: 0; left: 0; width: 100%; height: 100%; ${cutGuideStyle} pointer-events: none; box-sizing: border-box; }
-        </style>
-      </head><body>
-        <div class="print-box-mutlak"><img src="${url}" id="print-img"><div class="cut-guide"></div></div>
-      </body></html>`);
-      doc.close();
+        const printFrame = document.createElement('iframe');
+        printFrame.id = 'pb-print-frame';
+        printFrame.style.cssText = 'position:fixed;top:-9999px;left:-9999px;border:none;width:1px;height:1px;';
+        document.body.appendChild(printFrame);
 
-      const img = doc.getElementById('print-img');
-      const triggerPrint = () => setTimeout(() => {
-        try { printFrame.contentWindow.focus(); printFrame.contentWindow.print(); } catch (e) {}
-      }, 800);
-      if (img.complete) triggerPrint();
-      else img.onload = triggerPrint;
+        const doc = printFrame.contentWindow.document;
+        const isStrip = pkgName.toLowerCase().includes('strip');
+        const pageW = isStrip ? '102mm' : '210mm';
+        const pageH = isStrip ? '152mm' : '297mm';
+        const safeW = isStrip ? '96mm' : '204mm';
+        const safeH = isStrip ? '131mm' : '276mm';
+        const cutGuideStyle = isStrip ? 'border: 1px dashed #ccc;' : 'display: none;';
+
+        doc.open();
+        doc.write(`<!DOCTYPE html><html><head><title>Print ${escHtml(orderId)}</title>
+          <style>
+            @page { size: ${pageW} ${pageH}; margin: 0 !important; }
+            html, body {
+              margin: 0 !important; padding: 0 !important; background: #fff !important;
+              width: ${pageW} !important; height: ${pageH} !important; overflow: hidden;
+              display: flex; justify-content: center; align-items: flex-start;
+            }
+            .print-box-mutlak { width: ${safeW} !important; height: ${safeH} !important; margin-top: 3mm !important; position: relative; background: #fff; }
+            img { width: 100% !important; height: 100% !important; object-fit: contain !important; display: block !important; }
+            .cut-guide { position: absolute; top: 0; left: 0; width: 100%; height: 100%; ${cutGuideStyle} pointer-events: none; box-sizing: border-box; }
+          </style>
+        </head><body>
+          <div class="print-box-mutlak"><img src="${url}" id="print-img"><div class="cut-guide"></div></div>
+        </body></html>`);
+        doc.close();
+
+        setTimeout(() => {
+          try { printFrame.contentWindow.focus(); printFrame.contentWindow.print(); } catch (e) {}
+        }, 500);
+      };
+
+      preloader.onerror = function() {
+        btnEl.innerHTML = origHtml;
+        btnEl.disabled = false;
+        alert('Gagal memuat gambar full resolusi untuk cetak. Gambar akan dibuka di tab baru.');
+        window.open(url, '_blank');
+      };
+
+      preloader.src = url;
     }
 
     setInterval(fetchPayments, 3000);

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+=<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
@@ -247,9 +247,21 @@
             const chip = document.createElement('button');
             chip.type = 'button';
             chip.className = 'neo-thumb-item' + (idx === activeIdx ? ' is-selected' : '');
-            chip.innerHTML = item.type === 'video'
-              ? '<span class="neo-thumb-preview"><i class="ri-play-fill"></i></span><span>' + item.thumbLabel + '</span>'
-              : '<img src="' + item.previewUrl + '" class="neo-thumb-preview" alt=""><span>' + item.thumbLabel + '</span>';
+            if (item.type === 'video') {
+              chip.innerHTML = '<span class="neo-thumb-preview"><i class="ri-play-fill"></i></span><span>' + item.thumbLabel + '</span>';
+            } else {
+              const thumbImg = document.createElement('img');
+              thumbImg.src = item.previewUrl;
+              thumbImg.className = 'neo-thumb-preview';
+              thumbImg.alt = '';
+              thumbImg.onerror = function() {
+                if (this.src !== item.url) this.src = item.url;
+              };
+              const lbl = document.createElement('span');
+              lbl.textContent = item.thumbLabel;
+              chip.appendChild(thumbImg);
+              chip.appendChild(lbl);
+            }
             chip.addEventListener('click', () => { activeIdx = idx; renderStage(); });
             thumbStrip.appendChild(chip);
           });
@@ -296,6 +308,9 @@
             const img = document.createElement('img');
             img.src = item.previewUrl;
             img.alt = item.badge;
+            img.onerror = function() {
+              if (this.src !== item.url) this.src = item.url;
+            };
             mediaSlot.appendChild(img);
           }
 
@@ -358,29 +373,31 @@
           });
         });
 
-        // Force Download langsung dari ImageKit.io (0 beban bandwidth Vercel + full HD)
-        async function forceDownload(mediaUrl, aliasName, btnEl) {
+        // FORCE DOWNLOAD FULL RESOLUSI VIA SERVER ENDPOINT (ANTI-PREVIEW & ANTI-CORS)
+        function forceDownload(mediaUrl, aliasName, btnEl) {
           const orig = btnEl.innerHTML;
-          btnEl.innerHTML = '<i class="ri-loader-4-line spin-anim"></i> SIMPAN...';
+          btnEl.innerHTML = '<i class="ri-loader-4-line spin-anim"></i> MENGUNDUH...';
           btnEl.style.pointerEvents = 'none';
-          try {
-            const res = await fetch(mediaUrl, { mode: 'cors' });
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            const blob = await res.blob();
-            const blobUrl = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.style.display = 'none'; a.href = blobUrl; a.download = aliasName;
-            document.body.appendChild(a); a.click();
-            URL.revokeObjectURL(blobUrl); document.body.removeChild(a);
-          } catch (e) {
-            const sep = mediaUrl.includes('?') ? '&' : '?';
-            window.open(mediaUrl + sep + 'ik-attachment=true', '_blank');
-          } finally {
-            btnEl.innerHTML = orig;
-            btnEl.style.pointerEvents = 'auto';
-          }
+
+          const dlUrl = '/api/download?url=' + encodeURIComponent(mediaUrl) + '&name=' + encodeURIComponent(aliasName);
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = dlUrl;
+          a.setAttribute('download', aliasName);
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+
+          setTimeout(() => {
+            btnEl.innerHTML = '<i class="ri-check-double-fill"></i> DIUNDUH!';
+            setTimeout(() => {
+              btnEl.innerHTML = orig;
+              btnEl.style.pointerEvents = 'auto';
+            }, 1800);
+          }, 800);
         }
 
+        // CONVERT GIF KE MP4 VIA SAME-ORIGIN PROXY (ANTI TAINTED CANVAS)
         async function convertGifToMp4(gifUrl, aliasName, btnEl) {
           const orig = btnEl.innerHTML;
           btnEl.innerHTML = '<i class="ri-loader-4-line spin-anim"></i> MERAKIT...';
@@ -389,7 +406,7 @@
             if (typeof SuperGif === 'undefined') throw new Error('Library GIF belum siap');
             const img = document.createElement('img');
             img.crossOrigin = 'Anonymous';
-            img.src = gifUrl;
+            img.src = '/api/download?url=' + encodeURIComponent(gifUrl) + '&name=' + encodeURIComponent(aliasName);
             const wrap = document.createElement('div');
             wrap.style.display = 'none'; wrap.appendChild(img); document.body.appendChild(wrap);
 
@@ -424,12 +441,15 @@
           }
         }
 
+        // SHARE KE IG STORY / SOSMED VIA SAME-ORIGIN PROXY
         async function shareToSosmed(mediaUrl, aliasName, btnEl) {
           const orig = btnEl.innerHTML;
           btnEl.innerHTML = '<i class="ri-loader-4-line spin-anim"></i> SIAPKAN...';
           btnEl.style.pointerEvents = 'none';
           try {
-            const res = await fetch(mediaUrl, { mode: 'cors' });
+            const proxyUrl = '/api/download?url=' + encodeURIComponent(mediaUrl) + '&name=' + encodeURIComponent(aliasName);
+            const res = await fetch(proxyUrl);
+            if (!res.ok) throw new Error('HTTP ' + res.status);
             const blob = await res.blob();
             const file = new File([blob], aliasName, { type: blob.type });
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -439,7 +459,11 @@
             } else {
               alert('Browser tidak mendukung Share langsung. Klik tombol UNDUH HD.');
             }
-          } catch (e) {} finally {
+          } catch (e) {
+            if (navigator.share) {
+              navigator.share({ title: 'Photobinc Moment', url: mediaUrl }).catch(() => {});
+            }
+          } finally {
             btnEl.innerHTML = orig; btnEl.style.pointerEvents = 'auto';
           }
         }

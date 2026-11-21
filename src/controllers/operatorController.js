@@ -7,13 +7,22 @@ dayjs.extend(timezone);
 const Transaction = require('../models/Transaction');
 const Frame = require('../models/Frame');
 
+function withOrigParam(url) {
+  if (!url) return '';
+  try {
+    const u = new URL(url);
+    if (u.hostname === 'ik.imagekit.io') {
+      u.searchParams.set('tr', 'orig-true');
+      return u.toString();
+    }
+  } catch (_) {}
+  return url;
+}
+
 exports.renderDashboard = (req, res) => {
-  return res.render('operator/dashboard', {
-    user: req.user,
-  });
+  return res.render('operator/dashboard', { user: req.user });
 };
 
-// Polling 3 detik: Antrean pembayaran manual hari ini (WIB)
 exports.getPaymentQueue = async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
@@ -61,13 +70,19 @@ exports.rejectPayment = async (req, res) => {
   }
 };
 
-// Polling 5 detik: Antrean cetak yang belum dicetak (print_status = 0)
 exports.getPrintQueue = async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     const [rows, allFrames] = await Promise.all([
-      Transaction.find({ print_url: { $ne: '' }, print_status: 0 })
-        .select('order_id package_name frame_info print_url created_at_wib')
+      Transaction.find({
+        status: 'lunas',
+        print_status: 0,
+        $or: [
+          { print_url: { $exists: true, $nin: ['', null] } },
+          { 'media_assets.0': { $exists: true } },
+        ],
+      })
+        .select('order_id package_name frame_info print_url media_assets created_at_wib')
         .sort({ createdAt: 1 })
         .lean(),
       Frame.find({}).select('type original_id order').lean(),
@@ -75,30 +90,44 @@ exports.getPrintQueue = async (req, res) => {
 
     const frameOrderMap = new Map(allFrames.map((f) => [`${f.type}_${f.original_id}`, f.order]));
 
-    const formatted = rows.map((item) => {
-      let frameLabel = item.frame_info || '-';
-      const lowInfo = frameLabel.toLowerCase();
-      const m = /(\d+)/.exec(frameLabel);
-      const id = m ? parseInt(m[1], 10) : 0;
-
-      if (id > 0) {
-        if (lowInfo.includes('strip') || (!lowInfo.includes('news') && String(item.package_name).toLowerCase().includes('strip'))) {
-          const ord = frameOrderMap.get(`strip_${id}`) || id;
-          frameLabel = `Desain Strip ${id} (Urutan ${ord})`;
-        } else if (lowInfo.includes('news') || String(item.package_name).toLowerCase().includes('news')) {
-          const ord = frameOrderMap.get(`news_${id}`) || id;
-          frameLabel = `Desain News ${id} (Urutan ${ord})`;
+    const formatted = rows
+      .map((item) => {
+        let rawPrintUrl = item.print_url || '';
+        if (!rawPrintUrl && Array.isArray(item.media_assets)) {
+          const found =
+            item.media_assets.find((a) => a.type === 'print' && a.url) ||
+            item.media_assets.find((a) => a.type === 'photo' && a.url) ||
+            item.media_assets[0];
+          if (found) rawPrintUrl = found.url;
         }
-      }
+        if (!rawPrintUrl) return null;
 
-      return {
-        order_id: item.order_id,
-        package_name: item.package_name,
-        frame_info: frameLabel,
-        print_url: item.print_url,
-        created_at: item.created_at_wib,
-      };
-    });
+        let frameLabel = item.frame_info || '-';
+        const lowInfo = frameLabel.toLowerCase();
+        const m = /(\d+)/.exec(frameLabel);
+        const id = m ? parseInt(m[1], 10) : 0;
+
+        if (id > 0) {
+          if (lowInfo.includes('strip') || (!lowInfo.includes('news') && String(item.package_name).toLowerCase().includes('strip'))) {
+            const ord = frameOrderMap.get(`strip_${id}`) || id;
+            frameLabel = `Desain Strip ${id} (Urutan ${ord})`;
+          } else if (lowInfo.includes('news') || String(item.package_name).toLowerCase().includes('news')) {
+            const ord = frameOrderMap.get(`news_${id}`) || id;
+            frameLabel = `Desain News ${id} (Urutan ${ord})`;
+          }
+        }
+
+        const origUrl = withOrigParam(rawPrintUrl);
+        return {
+          order_id: item.order_id,
+          package_name: item.package_name,
+          frame_info: frameLabel,
+          print_url: origUrl,
+          thumb_url: `/api/ar-target?url=${encodeURIComponent(origUrl)}&w=600`,
+          created_at: item.created_at_wib,
+        };
+      })
+      .filter(Boolean);
 
     return res.json({ success: true, data: formatted });
   } catch (err) {
