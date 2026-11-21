@@ -1,0 +1,159 @@
+<%- include('partials/header') %>
+<style>
+  .v-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px; margin-bottom: 24px; }
+  .v-card { background: #fff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; }
+  .v-card h3 { margin: 0 0 14px; font-size: 16px; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; }
+  .v-row { margin-bottom: 12px; }
+  .v-row label { display: block; font-size: 12.5px; font-weight: 700; color: #475569; margin-bottom: 4px; }
+  .v-row input, .v-row select { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13.5px; }
+  .v-table-wrap { background: #fff; border-radius: 12px; overflow-x: auto; border: 1px solid #e2e8f0; }
+  table.v-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 760px; }
+  table.v-table th, table.v-table td { padding: 12px 14px; text-align: left; border-bottom: 1px solid #f1f5f9; }
+  table.v-table th { background: #f8fafc; font-weight: 800; color: #475569; text-transform: uppercase; font-size: 11.5px; }
+  .code-pill { font-family: monospace; font-size: 15px; font-weight: 900; background: #fef08a; border: 1.5px solid #111; padding: 3px 9px; border-radius: 6px; letter-spacing: 1px; }
+  .st-ok { background: #dcfce7; color: #166534; padding: 3px 8px; border-radius: 99px; font-weight: 700; font-size: 11.5px; }
+  .st-used { background: #e2e8f0; color: #475569; padding: 3px 8px; border-radius: 99px; font-weight: 700; font-size: 11.5px; }
+  .st-exp { background: #fee2e2; color: #b91c1c; padding: 3px 8px; border-radius: 99px; font-weight: 700; font-size: 11.5px; }
+</style>
+
+<% if (flashMsg) { %><div class="alert-ok"><%= flashMsg %></div><% } %>
+<% if (flashErr) { %><div class="alert-err"><%= flashErr %></div><% } %>
+
+<div class="v-grid">
+  <!-- GLOBAL EXPIRY SETTING -->
+  <div class="v-card">
+    <h3><i class="ri-time-line"></i> Masa Berlaku Global Voucher (WIB)</h3>
+    <p style="font-size:13px; color:#64748b; margin-top:0;">Berlaku otomatis untuk seluruh voucher yang tidak disetel tanggal kedaluwarsa khusus.</p>
+    <form method="POST" action="/admin/vouchers/expiry">
+      <div class="v-row">
+        <label>Batas Akhir Berlaku (WIB)</label>
+        <input type="datetime-local" name="expiry_iso" value="<%= setting.global_voucher_expiry_iso %>" required />
+      </div>
+      <div style="font-size:12.5px; font-weight:700; color:#0369a1; margin-bottom:14px;">
+        Aktif Saat Ini: <%= setting.global_voucher_expiry_label %>
+      </div>
+      <button type="submit" class="pb-btn pb-btn-dark"><i class="ri-save-line"></i> Simpan Expiry Global</button>
+    </form>
+  </div>
+
+  <!-- CREATE / GENERATE VOUCHER 5 DIGIT -->
+  <div class="v-card">
+    <h3><i class="ri-ticket-2-line"></i> Buat / Generate Voucher 5 Digit</h3>
+    <form method="POST" action="/admin/vouchers/create">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <div class="v-row">
+          <label>Mode Pembuatan</label>
+          <select name="mode" id="v-mode" onchange="toggleVoucherMode()">
+            <option value="bulk">Generate Massal Acak</option>
+            <option value="single">Buat 1 Kode Khusus</option>
+          </select>
+        </div>
+        <div class="v-row">
+          <label>Tipe Voucher</label>
+          <select name="type" id="v-type" onchange="toggleVoucherType()">
+            <option value="discount">Diskon Nominal (Rp)</option>
+            <option value="free">Gratis 100% (Free)</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="box-bulk" style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <div class="v-row"><label>Jumlah Kode (Maks 100)</label><input type="number" name="qty" value="10" min="1" max="100" /></div>
+        <div class="v-row"><label>Prefix Opsional (cth: PB)</label><input type="text" name="prefix" maxlength="3" placeholder="Kosongkan untuk acak 5 digit" /></div>
+      </div>
+
+      <div id="box-single" style="display:none;" class="v-row">
+        <label>Kode Voucher Khusus</label>
+        <input type="text" name="code" placeholder="Contoh: ERA26" />
+      </div>
+
+      <div id="box-nominal" style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <div class="v-row"><label>Potongan Strip (Rp)</label><input type="number" name="amount_strip" value="5000" /></div>
+        <div class="v-row"><label>Potongan News (Rp)</label><input type="number" name="amount_news" value="5000" /></div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 2fr; gap:10px;">
+        <div class="v-row"><label>Kuota Pakai</label><input type="number" name="usage_limit" value="1" min="1" /></div>
+        <div class="v-row"><label>Catatan (Opsional)</label><input type="text" name="notes" placeholder="Misal: Mystery Box / Sponsor" /></div>
+      </div>
+
+      <button type="submit" class="pb-btn pb-btn-green"><i class="ri-add-circle-line"></i> Buat Voucher</button>
+    </form>
+  </div>
+</div>
+
+<div class="v-table-wrap">
+  <table class="v-table">
+    <thead>
+      <tr>
+        <th>KODE</th>
+        <th>TIPE & BENEFIT</th>
+        <th>KUOTA</th>
+        <th>STATUS</th>
+        <th>DIPAKAI PADA</th>
+        <th>CATATAN</th>
+        <th style="text-align:right;">AKSI</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (vouchers.length === 0) { %>
+        <tr><td colspan="7" style="text-align:center; padding:32px; color:#94a3b8;">Belum ada voucher yang dibuat.</td></tr>
+      <% } else { %>
+        <% vouchers.forEach(function(v) {
+          const effExp = v.expiry_ts > 0 ? v.expiry_ts : setting.global_voucher_expiry_ts;
+          const isUsed = v.usage_count >= v.usage_limit;
+          const isExp = effExp > 0 && nowUnix > effExp;
+        %>
+          <tr id="vrow-<%= v._id %>">
+            <td><span class="code-pill"><%= v.code %></span></td>
+            <td>
+              <% if (v.type === 'free') { %>
+                <strong style="color:#16a34a;">GRATIS 100%</strong>
+              <% } else { %>
+                Strip: <strong>-Rp <%= Number(v.amount_strip).toLocaleString('id-ID') %></strong><br/>
+                News: <strong>-Rp <%= Number(v.amount_news).toLocaleString('id-ID') %></strong>
+              <% } %>
+            </td>
+            <td><strong><%= v.usage_count %> / <%= v.usage_limit %></strong></td>
+            <td>
+              <% if (isUsed) { %><span class="st-used">TERPAKAI</span>
+              <% } else if (isExp) { %><span class="st-exp">KEDALUWARSA</span>
+              <% } else { %><span class="st-ok">TERSEDIA</span><% } %>
+            </td>
+            <td style="font-size:12px; color:#475569;">
+              <%= v.used_at ? (v.used_package + ' • ' + v.used_at) : '-' %>
+            </td>
+            <td style="font-size:12px; color:#64748b;"><%= v.notes || '-' %></td>
+            <td style="text-align:right;">
+              <button type="button" class="pb-btn pb-btn-soft-red" style="padding:6px 10px;" onclick="delVoucher('<%= v._id %>')">
+                <i class="ri-delete-bin-line"></i>
+              </button>
+            </td>
+          </tr>
+        <% }) %>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+
+<script>
+  function toggleVoucherMode() {
+    const isSingle = document.getElementById('v-mode').value === 'single';
+    document.getElementById('box-single').style.display = isSingle ? 'block' : 'none';
+    document.getElementById('box-bulk').style.display = isSingle ? 'none' : 'grid';
+  }
+  function toggleVoucherType() {
+    const isFree = document.getElementById('v-type').value === 'free';
+    document.getElementById('box-nominal').style.display = isFree ? 'none' : 'grid';
+  }
+  async function delVoucher(id) {
+    if (!confirm('Hapus voucher ini permanen?')) return;
+    const res = await fetch('/admin/vouchers/' + id, { method: 'DELETE' });
+    const json = await res.json();
+    if (json.success) {
+      const el = document.getElementById('vrow-' + id);
+      if (el) el.remove();
+    }
+  }
+</script>
+<%- include('partials/footer') %>

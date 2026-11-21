@@ -1,0 +1,262 @@
+<%- include('partials/header') %>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+
+<style>
+  .box-card { background: #fff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 18px 22px; margin-bottom: 22px; }
+  .sec-bar { padding: 11px 16px; border-radius: 8px; font-size: 16px; font-weight: 800; margin: 28px 0 14px; }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+  .field label { display: block; font-size: 12.5px; font-weight: 700; color: #475569; margin-bottom: 5px; }
+  .field input, .field select { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13.5px; }
+  .ve-list { display: flex; flex-direction: column; gap: 18px; }
+  .visual-editor-container {
+    background: #fff; border: 1px solid #cbd5e1; border-radius: 10px; padding: 16px;
+    display: flex; gap: 20px; flex-wrap: wrap; transition: opacity 0.2s, filter 0.2s;
+  }
+  .ve-left { flex: 0 0 340px; max-width: 100%; }
+  .ve-right { flex: 1; min-width: 300px; }
+  .canvas-viewport { width: 100%; max-height: 480px; overflow: auto; border: 2px dashed #94a3b8; border-radius: 6px; background: #e2e8f0; }
+  .ve-canvas { position: relative; width: 100%; overflow: hidden; transform-origin: top left; cursor: crosshair; }
+  .ve-img { width: 100%; display: block; pointer-events: none; min-height: 100px; }
+  .ve-box {
+    position: absolute; display: none; align-items: center; justify-content: center; font-weight: 900;
+    font-size: 22px; cursor: move; user-select: none; outline: none;
+  }
+  .ve-box:focus { border-color: #0ea5e9 !important; box-shadow: 0 0 0 4px rgba(14,165,233,0.4) !important; z-index: 100 !important; }
+  .box-ctrl { position: absolute; top: 4px; right: 4px; display: flex; gap: 4px; opacity: 0; transition: 0.15s; }
+  .ve-box:hover .box-ctrl, .ve-box:focus .box-ctrl { opacity: 1 !important; z-index: 101; }
+  .coord-card { background: #f1f5f9; padding: 8px; border-radius: 6px; font-size: 11.5px; margin-bottom: 8px; }
+  .coord-card input { width: 58px; padding: 4px; border: 1px solid #cbd5e1; border-radius: 4px; margin: 2px 4px 2px 2px; font-size: 12px; }
+  .sticky-save {
+    position: fixed; bottom: 18px; right: 24px; z-index: 300;
+    box-shadow: 0 10px 25px rgba(37, 99, 235, 0.35); padding: 14px 24px; font-size: 15px; border-radius: 99px;
+  }
+</style>
+
+<% if (flashMsg) { %><div class="alert-ok"><%= flashMsg %></div><% } %>
+<% if (flashErr) { %><div class="alert-err"><%= flashErr %></div><% } %>
+
+<!-- EXPORT & IMPORT JSON WORDPRESS -->
+<div class="box-card" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; background:#f8fafc;">
+  <div>
+    <h3 style="margin:0 0 4px; font-size:16px;">Export & Import Frame (Kompatibel 100% JSON WordPress)</h3>
+    <p style="margin:0; font-size:13px; color:#475569;">Import file <code>photobooth-frame-settings-*.json</code> langsung dari WordPress atau export kembali ke WordPress.</p>
+  </div>
+  <div style="display:flex; gap:14px; align-items:center; flex-wrap:wrap;">
+    <a href="/admin/frames/export-json" class="pb-btn pb-btn-green"><i class="ri-download-2-line"></i> Export JSON</a>
+    <form method="POST" action="/admin/frames/import-json" enctype="multipart/form-data" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:0; background:#fff; padding:8px 12px; border-radius:8px; border:1px solid #cbd5e1;">
+      <input type="file" name="import_file" accept=".json" required style="font-size:12.5px;" />
+      <label style="font-size:12px; font-weight:700; display:flex; align-items:center; gap:4px; cursor:pointer;">
+        <input type="checkbox" name="mirror_images" value="1" checked /> Salin PNG ke ImageKit.io
+      </label>
+      <button type="submit" class="pb-btn pb-btn-dark"><i class="ri-upload-2-line"></i> Import JSON</button>
+    </form>
+  </div>
+</div>
+
+<!-- INPUT FILE HIDDEN UNTUK DIRECT UPLOAD PNG KE IMAGEKIT -->
+<input type="file" id="ik-direct-file-input" accept="image/png,image/jpeg,image/webp" style="display:none;" />
+
+<form method="POST" action="/admin/frames/save" id="frames-master-form">
+  <div class="sec-bar" style="background:#1e3a8a; color:#fff;">1. Harga & Sistem</div>
+  <div class="box-card">
+    <div class="form-grid">
+      <div class="field">
+        <label>Mode Midtrans</label>
+        <select name="environment">
+          <option value="sandbox" <%= setting.environment === 'sandbox' ? 'selected' : '' %>>Sandbox</option>
+          <option value="production" <%= setting.environment === 'production' ? 'selected' : '' %>>Production</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Timer Sesi (Menit)</label>
+        <input type="number" name="timer" value="<%= setting.timer %>" />
+      </div>
+      <div class="field">
+        <label>Harga Strip Normal (Rp)</label>
+        <input type="number" name="price_strip" value="<%= setting.price_strip %>" />
+      </div>
+      <div class="field">
+        <label>Harga Newspaper (Rp)</label>
+        <input type="number" name="price_news" value="<%= setting.price_news %>" />
+      </div>
+      <div class="field">
+        <label>Harga Strip Promo (Rp)</label>
+        <input type="number" name="price_strip_promo" value="<%= setting.price_strip_promo %>" />
+      </div>
+      <div class="field">
+        <label>Midtrans Server Key</label>
+        <input type="text" name="server_key" value="<%= setting.midtrans_server_key %>" placeholder="SB-Mid-server-..." />
+      </div>
+      <div class="field">
+        <label>Midtrans Client Key</label>
+        <input type="text" name="client_key" value="<%= setting.midtrans_client_key %>" placeholder="SB-Mid-client-..." />
+      </div>
+    </div>
+  </div>
+
+  <!-- 18 FRAME CLASSIC STRIP -->
+  <div class="sec-bar" style="background:#ec4899; color:#fff;">2. Pengaturan CLASSIC STRIP (18 Pilihan Frame — 6 Kotak)</div>
+  <div class="ve-list">
+    <% stripFrames.forEach(function(f) { const i = f.original_id; %>
+      <div class="visual-editor-container" data-prefix="strip_f<%= i %>" style="border-left:5px solid #ec4899;">
+        <div class="ve-left">
+          <h4 style="margin:0 0 8px;">PREVIEW STRIP <%= i %></h4>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; background:#f1f5f9; padding:5px 8px; border-radius:6px;">
+            <span style="font-size:11.5px; font-weight:700;">Zoom:</span>
+            <div style="display:flex; gap:4px; align-items:center;">
+              <button type="button" class="pb-btn pb-btn-outline btn-zoom-out" style="padding:3px 8px;">-</button>
+              <span class="zoom-level" style="font-size:12px; font-weight:800; width:42px; text-align:center;">100%</span>
+              <button type="button" class="pb-btn pb-btn-outline btn-zoom-in" style="padding:3px 8px;">+</button>
+              <button type="button" class="pb-btn pb-btn-outline btn-zoom-reset" style="padding:3px 8px; font-size:11px;">Reset</button>
+            </div>
+          </div>
+
+          <div class="canvas-viewport">
+            <div class="ve-canvas" data-zoom="100">
+              <img class="ve-img" src="<%= f.url %>" crossorigin="anonymous" />
+              <div class="guide-x" style="display:none; position:absolute; left:0; right:0; height:1px; background:#06b6d4; z-index:10; pointer-events:none;"></div>
+              <div class="guide-y" style="display:none; position:absolute; top:0; bottom:0; width:1px; background:#06b6d4; z-index:10; pointer-events:none;"></div>
+              <% for (let p = 1; p <= 6; p++) { %>
+                <div class="ve-box ve-box-p<%= p %>" data-pose="<%= p %>" tabindex="0" style="background:rgba(236,72,153,0.4); border:2px solid #be185d; color:#fff; text-shadow:1px 1px 2px #000;">
+                  <span class="box-label"><%= p %></span>
+                  <div class="box-ctrl">
+                    <button type="button" class="box-dup" title="Duplikat (D)" style="background:#3b82f6; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:11px; padding:2px 5px;">D</button>
+                    <button type="button" class="box-del" title="Hapus (Del)" style="background:#ef4444; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:11px; padding:2px 5px;">X</button>
+                  </div>
+                </div>
+              <% } %>
+            </div>
+          </div>
+          <p style="font-size:11px; color:#64748b; margin:6px 0 0;">Drag di area kosong untuk buat kotak. Tekan <b>D</b> duplikat, <b>Del</b> hapus, Panah untuk geser 1px.</p>
+        </div>
+
+        <div class="ve-right">
+          <div style="display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; align-items:center;">
+            <input type="text" id="strip_f<%= i %>_url" name="strip_f<%= i %>_url" value="<%= f.url %>" style="flex:1; min-width:200px; padding:8px; border:1px solid #cbd5e1; border-radius:6px;" placeholder="URL Gambar PNG Frame (ImageKit)" />
+            <button type="button" class="pb-btn pb-btn-dark pb-ik-upload-btn" data-target="strip_f<%= i %>_url" data-folder="/photobooth/frames">Upload PNG</button>
+            <button type="button" class="pb-btn pb-btn-yellow btn-match-dim">Sesuaikan</button>
+            <button type="button" class="pb-btn pb-btn-cyan btn-auto-detect">Auto-Detect</button>
+            <button type="button" class="pb-btn pb-btn-red btn-reset-frame">Bersihkan</button>
+          </div>
+
+          <div style="margin-bottom:10px; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; display:flex; gap:16px; align-items:center; flex-wrap:wrap; font-size:13px;">
+            <label style="font-weight:800; color:#16a34a; cursor:pointer;">
+              <input type="checkbox" class="frame-active-cb" name="strip_f<%= i %>_active" value="1" <%= f.active ? 'checked' : '' %> /> Aktifkan Frame
+            </label>
+            <div><strong>Urutan:</strong> <input type="number" name="strip_f<%= i %>_order" value="<%= f.order %>" style="width:60px; padding:4px;" /></div>
+            <div>
+              <strong>Canvas:</strong>
+              W <input type="number" name="strip_f<%= i %>_w" value="<%= f.w %>" class="canvas-w" style="width:72px; padding:4px;" />
+              H <input type="number" name="strip_f<%= i %>_h" value="<%= f.h %>" class="canvas-h" style="width:72px; padding:4px;" />
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div>
+              <% for (let p = 1; p <= 3; p++) { const sl = f.slots['p' + p]; %>
+                <div class="coord-card">
+                  <strong>Kotak P<%= p %>:</strong><br/>
+                  X<input type="number" name="strip_f<%= i %>_p<%= p %>_x" value="<%= sl.x %>" class="pose-x-<%= p %>" />
+                  Y<input type="number" name="strip_f<%= i %>_p<%= p %>_y" value="<%= sl.y %>" class="pose-y-<%= p %>" /><br/>
+                  W<input type="number" name="strip_f<%= i %>_p<%= p %>_w" value="<%= sl.w %>" class="pose-w-<%= p %>" />
+                  H<input type="number" name="strip_f<%= i %>_p<%= p %>_h" value="<%= sl.h %>" class="pose-h-<%= p %>" />
+                </div>
+              <% } %>
+            </div>
+            <div>
+              <% for (let p = 4; p <= 6; p++) { const sl = f.slots['p' + p]; %>
+                <div class="coord-card">
+                  <strong>Kotak P<%= p %>:</strong><br/>
+                  X<input type="number" name="strip_f<%= i %>_p<%= p %>_x" value="<%= sl.x %>" class="pose-x-<%= p %>" />
+                  Y<input type="number" name="strip_f<%= i %>_p<%= p %>_y" value="<%= sl.y %>" class="pose-y-<%= p %>" /><br/>
+                  W<input type="number" name="strip_f<%= i %>_p<%= p %>_w" value="<%= sl.w %>" class="pose-w-<%= p %>" />
+                  H<input type="number" name="strip_f<%= i %>_p<%= p %>_h" value="<%= sl.h %>" class="pose-h-<%= p %>" />
+                </div>
+              <% } %>
+            </div>
+          </div>
+        </div>
+      </div>
+    <% }) %>
+  </div>
+
+  <!-- 3 FRAME NEWSPAPER -->
+  <div class="sec-bar" style="background:#facc15; color:#111;">3. Pengaturan NEWSPAPER (3 Pilihan Frame — Cetak & Digital)</div>
+  <div class="ve-list">
+    <% newsFrames.forEach(function(f) { const i = f.original_id; %>
+      <div class="visual-editor-container" data-prefix="news_f<%= i %>" style="border-left:5px solid #facc15;">
+        <div class="ve-left">
+          <h4 style="margin:0 0 8px;">PREVIEW NEWS <%= i %></h4>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; background:#f1f5f9; padding:5px 8px; border-radius:6px;">
+            <span style="font-size:11.5px; font-weight:700;">Zoom:</span>
+            <div style="display:flex; gap:4px; align-items:center;">
+              <button type="button" class="pb-btn pb-btn-outline btn-zoom-out" style="padding:3px 8px;">-</button>
+              <span class="zoom-level" style="font-size:12px; font-weight:800; width:42px; text-align:center;">100%</span>
+              <button type="button" class="pb-btn pb-btn-outline btn-zoom-in" style="padding:3px 8px;">+</button>
+              <button type="button" class="pb-btn pb-btn-outline btn-zoom-reset" style="padding:3px 8px; font-size:11px;">Reset</button>
+            </div>
+          </div>
+
+          <div class="canvas-viewport">
+            <div class="ve-canvas" data-zoom="100">
+              <img class="ve-img" src="<%= f.url %>" crossorigin="anonymous" />
+              <div class="guide-x" style="display:none; position:absolute; left:0; right:0; height:1px; background:#06b6d4; z-index:10; pointer-events:none;"></div>
+              <div class="guide-y" style="display:none; position:absolute; top:0; bottom:0; width:1px; background:#06b6d4; z-index:10; pointer-events:none;"></div>
+              <% for (let p = 1; p <= 2; p++) { %>
+                <div class="ve-box ve-box-p<%= p %>" data-pose="<%= p %>" tabindex="0" style="background:rgba(250,204,21,0.45); border:2px solid #ca8a04; color:#000; text-shadow:1px 1px 2px #fff;">
+                  <span class="box-label"><%= p %></span>
+                  <div class="box-ctrl">
+                    <button type="button" class="box-dup" style="background:#3b82f6; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:11px; padding:2px 5px;">D</button>
+                    <button type="button" class="box-del" style="background:#ef4444; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:11px; padding:2px 5px;">X</button>
+                  </div>
+                </div>
+              <% } %>
+            </div>
+          </div>
+        </div>
+
+        <div class="ve-right">
+          <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap; align-items:center;">
+            <input type="text" id="news_f<%= i %>_url" name="news_f<%= i %>_url" value="<%= f.url %>" style="flex:1; min-width:200px; padding:8px; border:1px solid #cbd5e1; border-radius:6px;" placeholder="URL Frame CETAK (Putih)" />
+            <button type="button" class="pb-btn pb-btn-dark pb-ik-upload-btn" data-target="news_f<%= i %>_url" data-folder="/photobooth/frames">Upload Cetak</button>
+            <button type="button" class="pb-btn pb-btn-yellow btn-match-dim">Sesuaikan</button>
+            <button type="button" class="pb-btn pb-btn-cyan btn-auto-detect">Auto-Detect</button>
+            <button type="button" class="pb-btn pb-btn-red btn-reset-frame">Bersihkan</button>
+          </div>
+          <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; align-items:center;">
+            <input type="text" id="news_f<%= i %>_digital_url" name="news_f<%= i %>_digital_url" value="<%= f.digital_url %>" style="flex:1; min-width:200px; padding:8px; border:1px solid #cbd5e1; border-radius:6px;" placeholder="URL Frame DIGITAL (Warna)" />
+            <button type="button" class="pb-btn pb-btn-outline pb-ik-upload-btn is-digital" data-target="news_f<%= i %>_digital_url" data-folder="/photobooth/frames">Upload Digital</button>
+          </div>
+
+          <div style="margin-bottom:10px; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; display:flex; gap:16px; align-items:center; flex-wrap:wrap; font-size:13px;">
+            <label style="font-weight:800; color:#16a34a; cursor:pointer;">
+              <input type="checkbox" class="frame-active-cb" name="news_f<%= i %>_active" value="1" <%= f.active ? 'checked' : '' %> /> Aktifkan Frame
+            </label>
+            <div><strong>Urutan:</strong> <input type="number" name="news_f<%= i %>_order" value="<%= f.order %>" style="width:60px; padding:4px;" /></div>
+            <div>
+              <strong>Canvas:</strong>
+              W <input type="number" name="news_f<%= i %>_w" value="<%= f.w %>" class="canvas-w" style="width:72px; padding:4px;" />
+              H <input type="number" name="news_f<%= i %>_h" value="<%= f.h %>" class="canvas-h" style="width:72px; padding:4px;" />
+            </div>
+          </div>
+
+          <% for (let p = 1; p <= 2; p++) { const sl = f.slots['p' + p]; %>
+            <div class="coord-card">
+              <strong>Kotak Foto <%= p %>:</strong><br/>
+              X <input type="number" name="news_f<%= i %>_p<%= p %>_x" value="<%= sl.x %>" class="pose-x-<%= p %>" />
+              Y <input type="number" name="news_f<%= i %>_p<%= p %>_y" value="<%= sl.y %>" class="pose-y-<%= p %>" />
+              W <input type="number" name="news_f<%= i %>_p<%= p %>_w" value="<%= sl.w %>" class="pose-w-<%= p %>" />
+              H <input type="number" name="news_f<%= i %>_p<%= p %>_h" value="<%= sl.h %>" class="pose-h-<%= p %>" />
+            </div>
+          <% } %>
+        </div>
+      </div>
+    <% }) %>
+  </div>
+
+  <button type="submit" class="pb-btn sticky-save"><i class="ri-save-3-line"></i> SIMPAN SEMUA PENGATURAN</button>
+</form>
+
+<script src="/js/visual-editor.js"></script>
+<%- include('partials/footer') %>

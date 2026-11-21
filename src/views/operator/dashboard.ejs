@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Halaman Operator — Photobinc</title>
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Permanent+Marker&display=swap');
+    * { box-sizing: border-box; font-family: 'Kalam', cursive; }
+    body { margin: 0; }
+    .op-wrapper {
+      background-color: #fdfbf7;
+      background-image: linear-gradient(#e4e4e4 1px, transparent 1px), linear-gradient(90deg, #e4e4e4 1px, transparent 1px);
+      background-size: 30px 30px;
+      min-height: 100vh; padding: 30px 40px 50px; color: #111;
+    }
+    .op-topbar {
+      display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 18px;
+    }
+    .op-top-btn {
+      font-family: sans-serif; font-weight: 800; font-size: 13px; text-decoration: none;
+      padding: 8px 14px; border: 2.5px solid #111; border-radius: 8px; box-shadow: 3px 3px 0 #111;
+      color: #111; background: #fff; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .op-header {
+      background: #fff; border: 4px solid #111; padding: 20px 30px; border-radius: 12px;
+      box-shadow: 6px 6px 0px #111; margin-bottom: 28px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .header-cyan { background: #e0f7fa; }
+    .header-pink { background: #ffe4e1; }
+    .op-title { margin: 0; font-family: 'Permanent Marker', cursive; font-size: 28px; text-transform: uppercase; color: #111; display: flex; align-items: center; gap: 10px; }
+    .op-status { background: #111; color: #fff; border: 2px solid #111; padding: 8px 16px; font-family: 'Permanent Marker', cursive; font-size: 18px; border-radius: 8px; letter-spacing: 1px; }
+    .status-red { color: #ff99c8; }
+    .status-cyan { color: #90dbf4; }
+    .op-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 28px; margin-bottom: 48px; }
+    .op-card {
+      background: #fff; border: 4px solid #111; box-shadow: 6px 6px 0px #111;
+      display: flex; flex-direction: column; border-radius: 12px; transition: transform 0.2s, box-shadow 0.2s; overflow: hidden;
+    }
+    .op-card:hover { transform: translateY(-4px); box-shadow: 8px 8px 0px #111; }
+    .op-card-header {
+      padding: 10px 15px; border-bottom: 3px solid #111; font-family: 'Permanent Marker', cursive; font-size: 15px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .bg-yellow { background: #fcf6bd; }
+    .bg-cyan { background: #90dbf4; }
+    .op-card-badge { background: #fff; border: 2px solid #111; padding: 2px 8px; border-radius: 6px; font-size: 12px; font-family: sans-serif; font-weight: bold; }
+    .op-card-img-wrap { padding: 14px; background: #fafafa; border-bottom: 2px dashed #ccc; }
+    .op-card-img { width: 100%; height: 200px; background: #fff; border: 2px solid #111; object-fit: contain; padding: 5px; border-radius: 8px; }
+    .op-card-body { padding: 20px; flex-grow: 1; display: flex; flex-direction: column; text-align: center; }
+    .op-pkg { font-family: 'Permanent Marker', cursive; font-size: 20px; margin: 0 0 5px; text-transform: uppercase; color: #111; }
+    .op-price { font-family: 'Permanent Marker', cursive; font-size: 30px; color: #ef4444; margin: 5px 0 15px; }
+    .op-frame-badge { font-size: 14px; font-weight: 700; background: #eee; display: inline-block; padding: 6px 12px; border: 2px solid #111; margin-bottom: 18px; border-radius: 6px; }
+    .btn-group { display: flex; gap: 8px; margin-top: auto; flex-wrap: wrap; }
+    .btn-group-vertical { display: flex; flex-direction: column; gap: 10px; margin-top: auto; }
+    .op-btn {
+      font-family: 'Permanent Marker', cursive; border: 3px solid #111; color: #111;
+      padding: 8px 10px; font-size: 14px; cursor: pointer; transition: 0.15s;
+      border-radius: 8px; box-shadow: 3px 3px 0px #111; flex: 1;
+      display: flex; align-items: center; justify-content: center; gap: 5px;
+    }
+    .btn-green { background: #d0f4de; } .btn-green:hover { background: #00E676; }
+    .btn-yellow { background: #fef08a; } .btn-yellow:hover { background: #facc15; }
+    .btn-red { background: #ff99c8; } .btn-red:hover { background: #ff5757; color: #fff; }
+    .btn-cyan { background: #90dbf4; width: 100%; font-size: 16px; padding: 12px; } .btn-cyan:hover { background: #38DBFF; }
+    .btn-white { background: #fff; width: 100%; } .btn-white:hover { background: #111; color: #fff; }
+    .op-btn:active { transform: translate(2px, 2px); box-shadow: 0 0 0 #111; }
+    .op-empty { grid-column: 1 / -1; text-align: center; padding: 45px; background: #fff; border: 3px dashed #111; font-family: 'Permanent Marker', cursive; font-size: 22px; color: #666; border-radius: 12px; }
+    @media (max-width: 900px) {
+      .op-wrapper { padding: 18px; }
+      .op-header { flex-direction: column; text-align: center; gap: 12px; }
+      .op-title { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="op-wrapper">
+    <div class="op-topbar">
+      <% if (user && user.role === 'admin') { %>
+        <a href="/admin/sales" class="op-top-btn" style="background:#fef08a;"><i class="ri-dashboard-line"></i> Dashboard Admin</a>
+      <% } %>
+      <a href="/logout" class="op-top-btn" style="background:#fee2e2; color:#b91c1c;"><i class="ri-logout-box-r-line"></i> Keluar</a>
+    </div>
+
+    <div class="op-header header-cyan">
+      <h1 class="op-title"><i class="ri-wallet-3-fill"></i> KONFIRMASI PEMBAYARAN</h1>
+      <div class="op-status" id="op-pay-counter"><span class="status-red">0</span> Menunggu</div>
+    </div>
+    <div class="op-grid" id="op-payment-container">
+      <div class="op-empty">Memuat data...</div>
+    </div>
+
+    <div class="op-header header-pink">
+      <h1 class="op-title"><i class="ri-printer-fill"></i> ANTREAN MESIN CETAK</h1>
+      <div class="op-status" id="op-counter">Sisa Antrean: <span class="status-cyan">0</span></div>
+    </div>
+    <div class="op-grid" id="op-queue-container">
+      <div class="op-empty">Memuat data...</div>
+    </div>
+  </div>
+
+  <script>
+    function escHtml(s) {
+      return String(s || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+    }
+
+    async function fetchPayments() {
+      try {
+        const res = await fetch('/operator/api/payment-queue?nocache=' + Date.now(), { cache: 'no-store' });
+        if (res.status === 401) { window.location.href = '/login?next=/operator'; return; }
+        const data = await res.json();
+        const container = document.getElementById('op-payment-container');
+
+        if (data.success && data.data.length > 0) {
+          document.getElementById('op-pay-counter').innerHTML = `<span class="status-red">${data.data.length}</span> Menunggu`;
+          container.innerHTML = data.data.map(item => `
+            <div class="op-card">
+              <div class="op-card-header bg-yellow">
+                <span>ORDER #${escHtml(item.order_id)}</span>
+                <span class="op-card-badge"><i class="ri-time-line"></i> Validasi</span>
+              </div>
+              <div class="op-card-body">
+                <h3 class="op-pkg">PAKET ${escHtml(item.package_name)}</h3>
+                <div class="op-price">Rp ${parseInt(item.amount, 10).toLocaleString('id-ID')}</div>
+                <div class="btn-group">
+                  <button class="op-btn btn-green" onclick="admitPayment('${escHtml(item.order_id)}', 'qris')"><i class="ri-qr-code-line"></i> QRIS</button>
+                  <button class="op-btn btn-yellow" onclick="admitPayment('${escHtml(item.order_id)}', 'cash')"><i class="ri-money-dollar-circle-line"></i> CASH</button>
+                  <button class="op-btn btn-red" onclick="rejectPayment('${escHtml(item.order_id)}')"><i class="ri-close-line"></i> TOLAK</button>
+                </div>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          document.getElementById('op-pay-counter').innerHTML = `<span class="status-red">0</span> Menunggu`;
+          container.innerHTML = '<div class="op-empty"><i class="ri-shield-check-fill" style="font-size:40px; display:block; color:#00E676; margin-bottom:10px;"></i>Semua order manual telah disetujui.</div>';
+        }
+      } catch (e) { console.error(e); }
+    }
+
+    async function admitPayment(orderId, method) {
+      const label = method === 'cash' ? 'UANG TUNAI (CASH)' : 'TRANSFER QRIS';
+      if (!confirm('Yakin menerima pembayaran via ' + label + ' untuk ID ' + orderId + '?')) return;
+      await fetch('/operator/api/admit-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: orderId, payment_method: method })
+      });
+      fetchPayments();
+    }
+
+    async function rejectPayment(orderId) {
+      if (!confirm('Tolak pembayaran ini? Layar pelanggan akan dibatalkan otomatis.')) return;
+      await fetch('/operator/api/reject-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: orderId })
+      });
+      fetchPayments();
+    }
+
+    async function fetchQueue() {
+      try {
+        const res = await fetch('/operator/api/print-queue?nocache=' + Date.now(), { cache: 'no-store' });
+        if (res.status === 401) { window.location.href = '/login?next=/operator'; return; }
+        const data = await res.json();
+        const container = document.getElementById('op-queue-container');
+
+        if (data.success && data.data.length > 0) {
+          document.getElementById('op-counter').innerHTML = `Sisa Antrean: <span class="status-cyan">${data.data.length}</span>`;
+          container.innerHTML = data.data.map(item => `
+            <div class="op-card" id="card-${escHtml(item.order_id)}">
+              <div class="op-card-header bg-cyan">
+                <span>ORDER #${escHtml(item.order_id)}</span>
+                <span class="op-card-badge"><i class="ri-printer-fill"></i> Antre</span>
+              </div>
+              <div class="op-card-img-wrap">
+                <img src="${escHtml(item.print_url)}" class="op-card-img" />
+              </div>
+              <div class="op-card-body">
+                <h3 class="op-pkg">${escHtml(item.package_name)}</h3>
+                <div><span class="op-frame-badge">${escHtml(item.frame_info)}</span></div>
+                <div class="btn-group-vertical">
+                  <button class="op-btn btn-cyan" onclick="printPhoto('${escHtml(item.order_id)}', '${escHtml(item.print_url)}', '${escHtml(item.package_name)}')">
+                    <i class="ri-printer-line"></i> CETAK SEKARANG
+                  </button>
+                  <button class="op-btn btn-white" onclick="markAsPrinted('${escHtml(item.order_id)}')">
+                    <i class="ri-check-line"></i> TANDAI SELESAI
+                  </button>
+                </div>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          document.getElementById('op-counter').innerHTML = `Sisa Antrean: <span class="status-cyan">0</span>`;
+          container.innerHTML = '<div class="op-empty"><i class="ri-check-double-line" style="font-size:40px; display:block; color:#00E676; margin-bottom:10px;"></i>Tidak ada antrean cetak baru.</div>';
+        }
+      } catch (e) { console.error(e); }
+    }
+
+    async function markAsPrinted(orderId) {
+      await fetch('/operator/api/mark-printed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: orderId })
+      });
+      fetchQueue();
+    }
+
+    function printPhoto(orderId, url, pkgName) {
+      const oldFrame = document.getElementById('pb-print-frame');
+      if (oldFrame) oldFrame.remove();
+
+      const printFrame = document.createElement('iframe');
+      printFrame.id = 'pb-print-frame';
+      printFrame.style.cssText = 'position:fixed;top:-9999px;left:-9999px;border:none;';
+      document.body.appendChild(printFrame);
+
+      const doc = printFrame.contentWindow.document;
+      const isStrip = pkgName.toLowerCase().includes('strip');
+      const pageW = isStrip ? '102mm' : '210mm';
+      const pageH = isStrip ? '152mm' : '297mm';
+      const safeW = isStrip ? '96mm' : '204mm';
+      const safeH = isStrip ? '131mm' : '276mm';
+      const cutGuideStyle = isStrip ? 'border: 1px dashed #ccc;' : 'display: none;';
+
+      doc.open();
+      doc.write(`<!DOCTYPE html><html><head><title>Print Operator</title>
+        <style>
+          @page { size: ${pageW} ${pageH}; margin: 0 !important; }
+          html, body {
+            margin: 0 !important; padding: 0 !important; background: #fff !important;
+            width: ${pageW} !important; height: ${pageH} !important; overflow: hidden;
+            display: flex; justify-content: center; align-items: flex-start;
+          }
+          .print-box-mutlak { width: ${safeW} !important; height: ${safeH} !important; margin-top: 3mm !important; position: relative; background: #fff; }
+          img { width: 100% !important; height: 100% !important; object-fit: contain !important; display: block !important; }
+          .cut-guide { position: absolute; top: 0; left: 0; width: 100%; height: 100%; ${cutGuideStyle} pointer-events: none; box-sizing: border-box; }
+        </style>
+      </head><body>
+        <div class="print-box-mutlak"><img src="${url}" id="print-img"><div class="cut-guide"></div></div>
+      </body></html>`);
+      doc.close();
+
+      const img = doc.getElementById('print-img');
+      const triggerPrint = () => setTimeout(() => {
+        try { printFrame.contentWindow.focus(); printFrame.contentWindow.print(); } catch (e) {}
+      }, 800);
+      if (img.complete) triggerPrint();
+      else img.onload = triggerPrint;
+    }
+
+    setInterval(fetchPayments, 3000);
+    setInterval(fetchQueue, 5000);
+    fetchPayments();
+    fetchQueue();
+  </script>
+</body>
+</html>

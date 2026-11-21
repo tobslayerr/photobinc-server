@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Download Hasil Foto — Photobinc</title>
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet" />
+  <script src="https://rawcdn.githack.com/buzzfeed/libgif-js/master/libgif.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@600;700;800;900&family=Space+Mono:wght@700&display=swap');
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      margin: 0; padding: 0; width: 100%; min-height: 100dvh;
+      background-color: #f4f4f0;
+      background-image: radial-gradient(#a1a1aa 1.4px, transparent 1.4px);
+      background-size: 20px 20px;
+      font-family: 'Inter', sans-serif; overflow-x: hidden;
+    }
+    .center-wrap { min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .state-card { background: #fff; border: 4px solid #111; box-shadow: 8px 8px 0 #111; border-radius: 18px; padding: 32px 24px; max-width: 390px; width: 100%; text-align: center; }
+    .state-icon { width: 68px; height: 68px; margin: 0 auto 14px; border: 3px solid #111; box-shadow: 4px 4px 0 #111; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 36px; }
+    #pb-neo-app { min-height: 100dvh; display: flex; justify-content: center; align-items: flex-start; padding: max(10px, env(safe-area-inset-top)) 12px max(14px, env(safe-area-inset-bottom)) 12px; }
+    .neo-shell { width: 100%; max-width: 470px; display: flex; flex-direction: column; gap: 9px; }
+    .neo-topbar { background: #fff; border: 3px solid #111; box-shadow: 5px 5px 0 #111; border-radius: 14px; padding: 8px 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .neo-brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
+    .neo-avatar { width: 40px; height: 40px; border-radius: 10px; border: 2.5px solid #111; box-shadow: 2px 2px 0 #111; object-fit: cover; flex-shrink: 0; }
+    .neo-brand-title { font-size: 13.5px; font-weight: 900; color: #111; display: flex; align-items: center; gap: 6px; }
+    .neo-count-pill { background: #c084fc; color: #111; border: 2px solid #111; font-family: 'Space Mono', monospace; font-size: 9.5px; font-weight: 700; padding: 1px 6px; border-radius: 6px; }
+    .neo-brand-sub { font-size: 11px; font-weight: 700; color: #52525b; }
+    .neo-brand-sub a { color: #0284c7; text-decoration: none; font-weight: 800; }
+    .neo-top-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .neo-mini-btn { border: 2.5px solid #111; box-shadow: 3px 3px 0 #111; border-radius: 9px; padding: 7px 10px; font-size: 11px; font-weight: 900; color: #111; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+    .neo-mini-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #111; }
+    .neo-btn-yellow { background: #facc15; }
+    .neo-btn-white { background: #fff; }
+    .neo-ar-banner { background: linear-gradient(90deg, #4ade80 0%, #a3e635 100%); border: 3px solid #111; box-shadow: 5px 5px 0 #111; border-radius: 14px; padding: 9px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; text-decoration: none; color: #111; }
+    .neo-ar-banner:active { transform: translate(3px, 3px); box-shadow: 2px 2px 0 #111; }
+    .neo-ar-left { display: flex; align-items: center; gap: 9px; min-width: 0; }
+    .neo-ar-icon { width: 34px; height: 34px; background: #111; color: #facc15; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+    .neo-ar-text strong { display: block; font-size: 12.5px; font-weight: 900; line-height: 1.2; }
+    .neo-ar-text span { display: block; font-size: 10.5px; font-weight: 700; color: #18181b; line-height: 1.25; }
+    .neo-ar-go { background: #111; color: #fff; font-family: 'Space Mono', monospace; font-size: 10.5px; font-weight: 700; padding: 6px 9px; border-radius: 8px; display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; }
+    .neo-sync-banner { background: #fef08a; border: 2.5px dashed #111; box-shadow: 4px 4px 0 #111; border-radius: 11px; padding: 7px 10px; font-size: 11px; font-weight: 800; color: #111; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .neo-tab-hint { background: #e0f2fe; border: 2px solid #111; box-shadow: 3px 3px 0 #111; border-radius: 9px; padding: 5px 10px; font-size: 11px; font-weight: 700; color: #111; display: flex; align-items: center; justify-content: center; gap: 6px; text-align: center; }
+    .neo-tabs { display: flex; gap: 7px; overflow-x: auto; padding: 2px 2px 5px; scrollbar-width: none; }
+    .neo-tabs::-webkit-scrollbar { display: none; }
+    .neo-tab { flex: 1 0 auto; background: #fff; color: #111; border: 2.5px solid #111; box-shadow: 3px 3px 0 #111; border-radius: 10px; padding: 7px 10px; font-size: 11px; font-weight: 900; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+    .neo-tab-badge { background: #111; color: #fff; font-family: 'Space Mono', monospace; font-size: 10px; padding: 1px 5px; border-radius: 5px; }
+    .neo-stage-card { background: #fff; border: 3.5px solid #111; box-shadow: 7px 7px 0 #111; border-radius: 18px; padding: 11px; display: flex; flex-direction: column; gap: 9px; }
+    .neo-stage-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .neo-stage-badge { background: #facc15; color: #111; border: 2.5px solid #111; box-shadow: 2.5px 2.5px 0 #111; border-radius: 8px; padding: 4px 10px; font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .neo-stage-right { display: flex; align-items: center; gap: 6px; }
+    .neo-stage-counter { font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700; color: #111; background: #e4e4e7; border: 2px solid #111; border-radius: 7px; padding: 4px 8px; }
+    .neo-icon-sq { width: 32px; height: 32px; background: #fff; color: #111; border: 2.5px solid #111; box-shadow: 2px 2px 0 #111; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; }
+    .neo-icon-sq.is-liked { background: #fda4af; color: #e11d48; }
+    .neo-viewport { position: relative; width: 100%; height: clamp(245px, 42dvh, 400px); background-color: #18181b; background-image: linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px); background-size: 18px 18px; border: 3px solid #111; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    .neo-media-slot { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; padding: 6px; cursor: zoom-in; }
+    .neo-media-slot img, .neo-media-slot video { width: 100%; height: 100%; object-fit: contain; border-radius: 6px; display: block; }
+    .neo-nav-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; background: #facc15; color: #111; border: 2.5px solid #111; box-shadow: 3px 3px 0 #111; border-radius: 9px; font-size: 20px; display: none; align-items: center; justify-content: center; cursor: pointer; z-index: 5; }
+    .neo-prev { left: 8px; } .neo-next { right: 8px; }
+    .neo-thumb-strip { display: none; gap: 8px; overflow-x: auto; padding: 2px 2px 4px; scrollbar-width: none; }
+    .neo-thumb-strip::-webkit-scrollbar { display: none; }
+    .neo-thumb-item { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; background: #f4f4f5; border: 2.5px solid #111; box-shadow: 2.5px 2.5px 0 #111; border-radius: 9px; padding: 4px 8px 4px 4px; cursor: pointer; font-size: 11px; font-weight: 800; color: #111; }
+    .neo-thumb-item.is-selected { background: #38bdf8; }
+    .neo-thumb-preview { width: 28px; height: 28px; border-radius: 6px; border: 2px solid #111; object-fit: cover; background: #111; display: flex; align-items: center; justify-content: center; color: #facc15; font-size: 14px; }
+    .neo-caption-bar { background: #f8fafc; border: 2px solid #111; border-radius: 10px; padding: 7px 10px; font-size: 11.5px; font-weight: 700; color: #27272a; line-height: 1.4; }
+    .neo-action-grid { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 8px; }
+    .neo-act-btn { border: 3px solid #111; box-shadow: 4px 4px 0 #111; border-radius: 11px; padding: 11px 6px; font-size: 11px; font-weight: 900; text-transform: uppercase; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap; }
+    .neo-act-btn:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 #111; }
+    .neo-act-dl { background: #4ade80; color: #111; }
+    .neo-act-black { background: #111; color: #facc15; }
+    .neo-act-ig { background: #f472b6; color: #111; }
+    .neo-act-tt { background: #fff; color: #111; }
+    .neo-footer-note { text-align: center; font-size: 11.5px; font-weight: 700; color: #52525b; padding: 2px 0 4px; }
+    .neo-lightbox { position: fixed; inset: 0; z-index: 99999; background: rgba(12,12,16,0.92); display: none; flex-direction: column; align-items: center; justify-content: center; padding: 18px; }
+    .neo-lb-close { position: fixed; top: max(16px, env(safe-area-inset-top)); right: 16px; background: #facc15; color: #111; border: 3px solid #111; box-shadow: 4px 4px 0 #111; border-radius: 10px; padding: 8px 14px; font-size: 12px; font-weight: 900; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+    .neo-lb-content { width: 100%; max-width: 92vw; max-height: 82dvh; display: flex; align-items: center; justify-content: center; }
+    .neo-lb-content img, .neo-lb-content video { max-width: 100%; max-height: 82dvh; border: 4px solid #fff; border-radius: 12px; object-fit: contain; }
+    .spin-anim { animation: spin 1s linear infinite; display: inline-block; }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+    @media (max-width: 375px) { .neo-action-grid { grid-template-columns: 1fr 1fr; } .neo-act-dl { grid-column: span 2; } .neo-mini-btn span { display: none; } }
+  </style>
+</head>
+<body>
+  <% if (totalPosts === 0) { %>
+    <div class="center-wrap">
+      <% if (oid) { %>
+        <div class="state-card">
+          <div class="state-icon" style="background:#facc15;"><i class="ri-loader-4-line spin-anim"></i></div>
+          <h2 style="margin:0 0 8px; font-size:22px; font-weight:900;">MERAKIT GALERI...</h2>
+          <p style="margin:0; font-size:14px; font-weight:600; color:#444;">Mesin sedang mengunggah Foto & Live Video kamu.<br>Halaman otomatis memuat dalam beberapa detik.</p>
+        </div>
+        <script>setTimeout(() => location.reload(), 3000);</script>
+      <% } else { %>
+        <div class="state-card">
+          <div class="state-icon" style="background:#f87171;"><i class="ri-error-warning-fill"></i></div>
+          <h2 style="margin:0 0 8px; font-size:22px; font-weight:900;">DOKUMEN KOSONG!</h2>
+          <p style="margin:0; font-size:14px; font-weight:600; color:#444;">Tautan tidak valid atau masa berlaku galeri telah habis.</p>
+        </div>
+      <% } %>
+    </div>
+  <% } else { %>
+    <div id="pb-neo-app" data-total-posts="<%= totalPosts %>">
+      <div class="neo-shell">
+
+        <div class="neo-topbar">
+          <div class="neo-brand">
+            <img src="<%= profileImg %>" alt="Photobinc" class="neo-avatar" />
+            <div>
+              <div class="neo-brand-title">PHOTOBINC <span class="neo-count-pill"><%= totalPosts %> FILE</span></div>
+              <div class="neo-brand-sub">Photobooth UNJ • <a href="https://www.instagram.com/photobinc" target="_blank">@photobinc</a></div>
+            </div>
+          </div>
+          <div class="neo-top-actions">
+            <button type="button" id="btn-copy-link" class="neo-mini-btn neo-btn-yellow"><i class="ri-links-line"></i> <span>SALIN</span></button>
+            <a href="https://www.instagram.com/photobinc" target="_blank" class="neo-mini-btn neo-btn-white"><i class="ri-instagram-line"></i> <span>IG</span></a>
+          </div>
+        </div>
+
+        <% if (liveArUrl) { %>
+          <a href="<%= liveArUrl %>" class="neo-ar-banner">
+            <div class="neo-ar-left">
+              <span class="neo-ar-icon"><i class="ri-camera-lens-fill"></i></span>
+              <div class="neo-ar-text">
+                <strong>SCAN LIVE PHOTO AR</strong>
+                <span>Arahkan kamera ke hasil cetak fisikmu biar bergerak!</span>
+              </div>
+            </div>
+            <span class="neo-ar-go">BUKA <i class="ri-arrow-right-line"></i></span>
+          </a>
+        <% } %>
+
+        <% if (!isUploadComplete) { %>
+          <div class="neo-sync-banner">
+            <i class="ri-loader-4-line spin-anim"></i>
+            <span>Mesin sedang mengunggah sisa fotomu... (Auto-refresh)</span>
+          </div>
+          <script>
+            setInterval(async function() {
+              try {
+                const res = await fetch(window.location.href);
+                const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+                const newApp = doc.getElementById('pb-neo-app');
+                const curApp = document.getElementById('pb-neo-app');
+                if (newApp && curApp && parseInt(newApp.dataset.totalPosts || '0', 10) > parseInt(curApp.dataset.totalPosts || '0', 10)) {
+                  location.reload();
+                }
+              } catch (e) {}
+            }, 4000);
+          </script>
+        <% } %>
+
+        <% if (availableCats.length > 1) { %>
+          <div class="neo-tab-hint">
+            <i class="ri-hand-coin-line" style="font-size:14px; color:#0284c7;"></i>
+            <span>Klik tab di bawah untuk lihat hasil lain (<strong>Live Video, GIF & Pose HD</strong>)!</span>
+          </div>
+        <% } %>
+
+        <div class="neo-tabs" id="neo-tabs">
+          <% availableCats.forEach(function(cat, idx) { %>
+            <button type="button" class="neo-tab <%= idx === 0 ? 'is-active' : '' %>" data-cat="<%= cat.key %>" data-color="<%= cat.color %>">
+              <i class="<%= cat.icon %>"></i>
+              <span><%= cat.label %></span>
+              <span class="neo-tab-badge"><%= cat.count %></span>
+            </button>
+          <% }) %>
+        </div>
+
+        <div class="neo-stage-card">
+          <div class="neo-stage-head">
+            <div class="neo-stage-badge" id="stage-badge">LOADING...</div>
+            <div class="neo-stage-right">
+              <span class="neo-stage-counter" id="stage-counter">1 / 1</span>
+              <button type="button" id="btn-like" class="neo-icon-sq"><i class="ri-heart-3-line"></i></button>
+              <button type="button" id="btn-zoom" class="neo-icon-sq"><i class="ri-fullscreen-line"></i></button>
+            </div>
+          </div>
+
+          <div class="neo-viewport">
+            <button type="button" id="btn-prev" class="neo-nav-arrow neo-prev"><i class="ri-arrow-left-s-line"></i></button>
+            <div class="neo-media-slot" id="stage-media-slot"></div>
+            <button type="button" id="btn-next" class="neo-nav-arrow neo-next"><i class="ri-arrow-right-s-line"></i></button>
+          </div>
+
+          <div class="neo-thumb-strip" id="neo-thumb-strip"></div>
+          <div class="neo-caption-bar" id="stage-caption"></div>
+
+          <div class="neo-action-grid">
+            <button type="button" id="btn-act-dl" class="neo-act-btn neo-act-dl"><i class="ri-download-2-fill"></i> UNDUH HD</button>
+            <button type="button" id="btn-act-mp4" class="neo-act-btn neo-act-black" style="display:none;"><i class="ri-video-download-fill"></i> VIDEO IG</button>
+            <button type="button" id="btn-act-ig" class="neo-act-btn neo-act-ig"><i class="ri-instagram-line"></i> IG STORY</button>
+            <button type="button" id="btn-act-tt" class="neo-act-btn neo-act-tt"><i class="ri-share-forward-fill"></i> SHARE</button>
+          </div>
+        </div>
+
+        <div class="neo-footer-note">
+          <i class="ri-verified-badge-fill" style="color:#16a34a;"></i>
+          #Photobinc • Tag <strong>@photobinc</strong> di Story kamu!
+        </div>
+      </div>
+    </div>
+
+    <div id="neo-lightbox" class="neo-lightbox">
+      <button type="button" id="btn-close-lb" class="neo-lb-close"><i class="ri-close-line"></i> TUTUP</button>
+      <div id="neo-lb-content" class="neo-lb-content"></div>
+    </div>
+
+    <script>
+      (function() {
+        const PB_ITEMS = <%- JSON.stringify(mediaItems) %>;
+        const likedSet = new Set();
+
+        const tabsWrap   = document.getElementById('neo-tabs');
+        const stageBadge = document.getElementById('stage-badge');
+        const stageCount = document.getElementById('stage-counter');
+        const mediaSlot  = document.getElementById('stage-media-slot');
+        const thumbStrip = document.getElementById('neo-thumb-strip');
+        const captionBar = document.getElementById('stage-caption');
+        const btnPrev    = document.getElementById('btn-prev');
+        const btnNext    = document.getElementById('btn-next');
+        const btnLike    = document.getElementById('btn-like');
+        const btnZoom    = document.getElementById('btn-zoom');
+        const btnActDl   = document.getElementById('btn-act-dl');
+        const btnActMp4  = document.getElementById('btn-act-mp4');
+        const btnActIg   = document.getElementById('btn-act-ig');
+        const btnActTt   = document.getElementById('btn-act-tt');
+        const lightbox   = document.getElementById('neo-lightbox');
+        const lbContent  = document.getElementById('neo-lb-content');
+        const btnCloseLb = document.getElementById('btn-close-lb');
+
+        let activeCat = PB_ITEMS.length > 0 ? PB_ITEMS[0].cat : 'frame';
+        let filtered  = [];
+        let activeIdx = 0;
+
+        const getCurrentItem = () => filtered[activeIdx] || null;
+
+        function renderThumbStrip() {
+          if (filtered.length <= 1) {
+            thumbStrip.style.display = 'none';
+            thumbStrip.innerHTML = '';
+            return;
+          }
+          thumbStrip.style.display = 'flex';
+          thumbStrip.innerHTML = '';
+          filtered.forEach((item, idx) => {
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'neo-thumb-item' + (idx === activeIdx ? ' is-selected' : '');
+            chip.innerHTML = item.type === 'video'
+              ? '<span class="neo-thumb-preview"><i class="ri-play-fill"></i></span><span>' + item.thumbLabel + '</span>'
+              : '<img src="' + item.previewUrl + '" class="neo-thumb-preview" alt=""><span>' + item.thumbLabel + '</span>';
+            chip.addEventListener('click', () => { activeIdx = idx; renderStage(); });
+            thumbStrip.appendChild(chip);
+          });
+        }
+
+        function renderStage() {
+          const item = getCurrentItem();
+          if (!item) return;
+
+          stageBadge.innerText = item.badge;
+          stageBadge.style.background = item.accent || '#facc15';
+          stageCount.innerText = (activeIdx + 1) + ' / ' + filtered.length;
+          captionBar.innerHTML = '<strong>photobinc</strong> ' + item.caption;
+
+          if (item.type === 'gif') {
+            btnActDl.innerHTML = '<i class="ri-file-gif-fill"></i> SIMPAN GIF';
+            btnActMp4.style.display = 'inline-flex';
+            btnActIg.style.display = 'none';
+          } else {
+            btnActDl.innerHTML = '<i class="ri-download-2-fill"></i> UNDUH HD';
+            btnActMp4.style.display = 'none';
+            btnActIg.style.display = 'inline-flex';
+          }
+
+          const isLiked = likedSet.has(item.id);
+          btnLike.classList.toggle('is-liked', isLiked);
+          btnLike.innerHTML = isLiked ? '<i class="ri-heart-3-fill"></i>' : '<i class="ri-heart-3-line"></i>';
+
+          const showNav = filtered.length > 1;
+          btnPrev.style.display = showNav ? 'inline-flex' : 'none';
+          btnNext.style.display = showNav ? 'inline-flex' : 'none';
+
+          mediaSlot.innerHTML = '';
+          if (item.type === 'video') {
+            const v = document.createElement('video');
+            v.src = item.url;
+            v.autoplay = true; v.loop = true; v.muted = true; v.playsInline = true; v.preload = 'auto';
+            v.setAttribute('autoplay', ''); v.setAttribute('loop', ''); v.setAttribute('muted', '');
+            v.setAttribute('playsinline', ''); v.setAttribute('webkit-playsinline', '');
+            mediaSlot.appendChild(v);
+            v.load();
+            v.play().catch(() => {});
+          } else {
+            const img = document.createElement('img');
+            img.src = item.previewUrl;
+            img.alt = item.badge;
+            mediaSlot.appendChild(img);
+          }
+
+          renderThumbStrip();
+        }
+
+        function selectCategory(catKey) {
+          activeCat = catKey;
+          filtered = PB_ITEMS.filter(it => it.cat === catKey);
+          activeIdx = 0;
+          tabsWrap.querySelectorAll('.neo-tab').forEach(btn => {
+            const isMatch = btn.dataset.cat === catKey;
+            btn.classList.toggle('is-active', isMatch);
+            btn.style.background = isMatch ? (btn.dataset.color || '#facc15') : '#ffffff';
+          });
+          renderStage();
+        }
+
+        tabsWrap.querySelectorAll('.neo-tab').forEach(btn => {
+          btn.addEventListener('click', () => selectCategory(btn.dataset.cat));
+        });
+        btnPrev.addEventListener('click', () => { activeIdx = (activeIdx - 1 + filtered.length) % filtered.length; renderStage(); });
+        btnNext.addEventListener('click', () => { activeIdx = (activeIdx + 1) % filtered.length; renderStage(); });
+        btnLike.addEventListener('click', () => {
+          const item = getCurrentItem();
+          if (!item) return;
+          if (likedSet.has(item.id)) likedSet.delete(item.id); else likedSet.add(item.id);
+          renderStage();
+        });
+
+        function openLightbox() {
+          const item = getCurrentItem();
+          if (!item) return;
+          lbContent.innerHTML = '';
+          if (item.type === 'video') {
+            const v = document.createElement('video');
+            v.src = item.url; v.controls = true; v.autoplay = true; v.loop = true; v.playsInline = true;
+            lbContent.appendChild(v);
+            v.play().catch(() => {});
+          } else {
+            const img = document.createElement('img');
+            img.src = item.url;
+            lbContent.appendChild(img);
+          }
+          lightbox.style.display = 'flex';
+        }
+
+        btnZoom.addEventListener('click', openLightbox);
+        mediaSlot.addEventListener('click', openLightbox);
+        btnCloseLb.addEventListener('click', () => { lbContent.innerHTML = ''; lightbox.style.display = 'none'; });
+        lightbox.addEventListener('click', e => { if (e.target === lightbox) { lbContent.innerHTML = ''; lightbox.style.display = 'none'; } });
+
+        document.getElementById('btn-copy-link').addEventListener('click', function() {
+          const btn = this;
+          navigator.clipboard.writeText(window.location.href).then(() => {
+            const orig = btn.innerHTML;
+            btn.innerHTML = '<i class="ri-check-fill"></i> <span>DISALIN!</span>';
+            btn.style.background = '#4ade80';
+            setTimeout(() => { btn.innerHTML = orig; btn.style.background = '#facc15'; }, 2500);
+          });
+        });
+
+        // Force Download langsung dari ImageKit.io (0 beban bandwidth Vercel + full HD)
+        async function forceDownload(mediaUrl, aliasName, btnEl) {
+          const orig = btnEl.innerHTML;
+          btnEl.innerHTML = '<i class="ri-loader-4-line spin-anim"></i> SIMPAN...';
+          btnEl.style.pointerEvents = 'none';
+          try {
+            const res = await fetch(mediaUrl, { mode: 'cors' });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const blob = await res.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none'; a.href = blobUrl; a.download = aliasName;
+            document.body.appendChild(a); a.click();
+            URL.revokeObjectURL(blobUrl); document.body.removeChild(a);
+          } catch (e) {
+            const sep = mediaUrl.includes('?') ? '&' : '?';
+            window.open(mediaUrl + sep + 'ik-attachment=true', '_blank');
+          } finally {
+            btnEl.innerHTML = orig;
+            btnEl.style.pointerEvents = 'auto';
+          }
+        }
+
+        async function convertGifToMp4(gifUrl, aliasName, btnEl) {
+          const orig = btnEl.innerHTML;
+          btnEl.innerHTML = '<i class="ri-loader-4-line spin-anim"></i> MERAKIT...';
+          btnEl.style.pointerEvents = 'none';
+          try {
+            if (typeof SuperGif === 'undefined') throw new Error('Library GIF belum siap');
+            const img = document.createElement('img');
+            img.crossOrigin = 'Anonymous';
+            img.src = gifUrl;
+            const wrap = document.createElement('div');
+            wrap.style.display = 'none'; wrap.appendChild(img); document.body.appendChild(wrap);
+
+            const gifObj = new SuperGif({ gif: img, auto_play: false });
+            gifObj.load(() => {
+              const canvas = gifObj.get_canvas();
+              if (canvas.width % 2 !== 0) canvas.width += 1;
+              if (canvas.height % 2 !== 0) canvas.height += 1;
+              const stream = canvas.captureStream(25);
+              let mimeType = 'video/mp4';
+              if (!MediaRecorder.isTypeSupported(mimeType)) {
+                mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=h264') ? 'video/webm;codecs=h264' : 'video/webm';
+              }
+              const rec = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 5000000 });
+              const chunks = [];
+              rec.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+              rec.onstop = () => {
+                const blobUrl = URL.createObjectURL(new Blob(chunks, { type: mimeType }));
+                const a = document.createElement('a');
+                a.style.display = 'none'; a.href = blobUrl; a.download = aliasName.replace(/\.gif$/i, '.mp4');
+                document.body.appendChild(a); a.click();
+                URL.revokeObjectURL(blobUrl); document.body.removeChild(a); document.body.removeChild(wrap);
+                btnEl.innerHTML = '<i class="ri-check-double-fill"></i> SELESAI!';
+                setTimeout(() => { btnEl.innerHTML = orig; btnEl.style.pointerEvents = 'auto'; }, 2500);
+              };
+              rec.start(); gifObj.play();
+              setTimeout(() => { gifObj.pause(); rec.stop(); }, 3500);
+            });
+          } catch (e) {
+            alert("HP kamu belum mendukung convert video langsung. Gunakan tombol 'Simpan GIF'.");
+            btnEl.innerHTML = orig; btnEl.style.pointerEvents = 'auto';
+          }
+        }
+
+        async function shareToSosmed(mediaUrl, aliasName, btnEl) {
+          const orig = btnEl.innerHTML;
+          btnEl.innerHTML = '<i class="ri-loader-4-line spin-anim"></i> SIAPKAN...';
+          btnEl.style.pointerEvents = 'none';
+          try {
+            const res = await fetch(mediaUrl, { mode: 'cors' });
+            const blob = await res.blob();
+            const file = new File([blob], aliasName, { type: blob.type });
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              await navigator.share({ files: [file], title: 'Photobinc Moment', text: 'Seru banget foto di Photobinc!' });
+            } else if (navigator.share) {
+              await navigator.share({ title: 'Photobinc Moment', text: 'Cek hasil foto seruku di Photobinc!', url: mediaUrl });
+            } else {
+              alert('Browser tidak mendukung Share langsung. Klik tombol UNDUH HD.');
+            }
+          } catch (e) {} finally {
+            btnEl.innerHTML = orig; btnEl.style.pointerEvents = 'auto';
+          }
+        }
+
+        btnActDl.addEventListener('click', function() { const it = getCurrentItem(); if (it) forceDownload(it.url, it.alias_name, this); });
+        btnActMp4.addEventListener('click', function() { const it = getCurrentItem(); if (it) convertGifToMp4(it.url, it.alias_name, this); });
+        btnActIg.addEventListener('click', function() { const it = getCurrentItem(); if (it) shareToSosmed(it.url, it.alias_name, this); });
+        btnActTt.addEventListener('click', function() { const it = getCurrentItem(); if (it) shareToSosmed(it.url, it.alias_name, this); });
+
+        if (PB_ITEMS.length > 0) selectCategory(activeCat);
+      })();
+    </script>
+  <% } %>
+</body>
+</html>

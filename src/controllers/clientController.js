@@ -1,0 +1,209 @@
+const path = require('path');
+const Transaction = require('../models/Transaction');
+const MediaAsset = require('../models/MediaAsset');
+
+function withImageKitPreview(url, isImage) {
+  if (!isImage || !url) return url;
+  if (process.env.IMAGEKIT_URL_ENDPOINT && url.startsWith(process.env.IMAGEKIT_URL_ENDPOINT)) {
+    const sep = url.includes('?') ? '&' : '?';
+    return `${url}${sep}tr=w-800,q-80,f-auto`;
+  }
+  return url;
+}
+
+async function resolveSessionMedia(req) {
+  const oid = String(req.query.oid || '').trim();
+  const filesEncoded = String(req.query.f || '').trim();
+  let filenames = [];
+
+  if (filesEncoded) {
+    try {
+      const decoded = Buffer.from(filesEncoded, 'base64').toString('utf8');
+      filenames = decoded.split(',').map((s) => s.trim()).filter(Boolean);
+    } catch (_) {}
+  }
+
+  let trx = null;
+  if (oid) {
+    trx = await Transaction.findOne({ order_id: oid }).sort({ createdAt: -1 }).lean();
+    if (trx && trx.all_files) {
+      filenames = trx.all_files.split(',').map((s) => s.trim()).filter(Boolean);
+    }
+  } else if (filenames.length > 0) {
+    const sample = filenames[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    trx = await Transaction.findOne({ all_files: new RegExp(sample) }).sort({ createdAt: -1 }).lean();
+    if (trx && trx.all_files) {
+      const dbFiles = trx.all_files.split(',').map((s) => s.trim()).filter(Boolean);
+      if (dbFiles.length > filenames.length) filenames = dbFiles;
+    }
+  }
+
+  // Petakan filename -> URL publik ImageKit
+  const urlMap = new Map();
+  if (trx && Array.isArray(trx.media_assets)) {
+    trx.media_assets.forEach((a) => {
+      if (a.filename && a.url) urlMap.set(a.filename, a.url);
+    });
+  }
+
+  const missingNames = filenames.filter((fn) => !urlMap.has(fn));
+  if (missingNames.length > 0) {
+    const assetDocs = await MediaAsset.find({ filename: { $in: missingNames } }).lean();
+    assetDocs.forEach((a) => {
+      if (a.filename && a.url) urlMap.set(a.filename, a.url);
+    });
+  }
+
+  const fallbackEndpoint = (process.env.IMAGEKIT_URL_ENDPOINT || '').replace(/\/+$/, '');
+  const urlsFrame = [];
+  const urlsLive = [];
+  const urlsGif = [];
+  const urlsRaw = [];
+  let isNewspaperHint = Boolean(trx && String(trx.package_name || '').toLowerCase().includes('news'));
+
+  for (const file of filenames) {
+    const clean = path.basename(file);
+    const ext = path.extname(clean).replace('.', '').toLowerCase();
+    const fullUrl = urlMap.get(clean) || (fallbackEndpoint ? `${fallbackEndpoint}/photobooth/sessions/${clean}` : '');
+    if (!fullUrl) continue;
+
+    if (
+      /^news[-_]/i.test(clean) ||
+      clean.toLowerCase().includes('newspaper') ||
+      clean.toLowerCase().includes('koran')
+    ) {
+      isNewspaperHint = true;
+    }
+
+    const isRaw = /^raw[-_]/i.test(clean);
+    const isLive = /^live[-_]/i.test(clean) || ['mp4', 'webm', 'mov'].includes(ext);
+    const isSlide = /^slide[-_]/i.test(clean) || (ext === 'gif' && !isRaw);
+
+    if (isLive) urlsLive.push({ file: clean, url: fullUrl, ext: ext || 'mp4' });
+    else if (isSlide) urlsGif.push({ file: clean, url: fullUrl, ext: 'gif' });
+    else if (isRaw) urlsRaw.push({ file: clean, url: fullUrl, ext: ext || 'jpg' });
+    else urlsFrame.push({ file: clean, url: fullUrl, ext: ext || 'jpg' });
+  }
+
+  const isUploadComplete = urlsRaw.length > 0 && urlsFrame.length > 0;
+  return { oid, filesEncoded, filenames, urlsFrame, urlsLive, urlsGif, urlsRaw, isUploadComplete, isNewspaperHint };
+}
+
+exports.renderDownloadPage = async (req, res) => {
+  try {
+    const session = await resolveSessionMedia(req);
+    const totalPosts =
+      session.urlsFrame.length + session.urlsLive.length + session.urlsGif.length + session.urlsRaw.length;
+
+    const nowTs = Math.floor(Date.now() / 1000);
+    const mediaItems = [];
+
+    session.urlsFrame.forEach((item, idx) => {
+      mediaItems.push({
+        id: `frame_${idx}`,
+        cat: 'frame',
+        type: 'image',
+        badge: idx === 0 ? 'FRAME UTAMA' : `FRAME #${idx + 1}`,
+        thumbLabel: `Frame ${idx + 1}`,
+        caption: 'Cakep banget! Ini dia hasil foto kolase frame kamu.',
+        previewUrl: withImageKitPreview(item.url, true),
+        url: item.url,
+        alias_name: `Photobinc-Frame-${nowTs}-${idx + 1}.jpg`,
+        accent: '#facc15',
+      });
+    });
+
+    session.urlsLive.forEach((item, idx) => {
+      mediaItems.push({
+        id: `live_${idx}`,
+        cat: 'live',
+        type: 'video',
+        badge: session.urlsLive.length > 1 ? `LIVE PHOTO #${idx + 1}` : 'LIVE PHOTO',
+        thumbLabel: `Live ${idx + 1}`,
+        caption: 'Momen di balik layar sebelum jepretan! Ala-ala Apple Live Photo.',
+        previewUrl: item.url,
+        url: item.url,
+        alias_name: `Photobinc-Live-${idx + 1}-${nowTs}.${item.ext}`,
+        accent: '#c084fc',
+      });
+    });
+
+    session.urlsGif.forEach((item, idx) => {
+      mediaItems.push({
+        id: `gif_${idx}`,
+        cat: 'gif',
+        type: 'gif',
+        badge: 'ANIMASI GIF',
+        thumbLabel: `GIF ${idx + 1}`,
+        caption: 'Gerak-gerak gemes! Klik "Video IG" biar tajam saat upload ke IG Story.',
+        previewUrl: item.url,
+        url: item.url,
+        alias_name: `Photobinc-GIF-${nowTs}-${idx + 1}.gif`,
+        accent: '#f472b6',
+      });
+    });
+
+    session.urlsRaw.forEach((item, idx) => {
+      mediaItems.push({
+        id: `raw_${idx}`,
+        cat: 'raw',
+        type: 'image',
+        badge: `MENTAHAN ${idx + 1}`,
+        thumbLabel: `Pose ${idx + 1}`,
+        caption: 'Foto Full HD asli tanpa bingkai buat diedit suka-suka.',
+        previewUrl: withImageKitPreview(item.url, true),
+        url: item.url,
+        alias_name: `Photobinc-RAW-${idx + 1}-${nowTs}.jpg`,
+        accent: '#38bdf8',
+      });
+    });
+
+    const availableCats = [];
+    if (session.urlsFrame.length > 0) availableCats.push({ key: 'frame', label: 'FRAME', count: session.urlsFrame.length, icon: 'ri-image-2-fill', color: '#facc15' });
+    if (session.urlsLive.length > 0) availableCats.push({ key: 'live', label: 'LIVE', count: session.urlsLive.length, icon: 'ri-movie-2-fill', color: '#c084fc' });
+    if (session.urlsGif.length > 0) availableCats.push({ key: 'gif', label: 'GIF', count: session.urlsGif.length, icon: 'ri-sparkling-fill', color: '#f472b6' });
+    if (session.urlsRaw.length > 0) availableCats.push({ key: 'raw', label: 'POSE HD', count: session.urlsRaw.length, icon: 'ri-camera-3-fill', color: '#38bdf8' });
+
+    let liveArUrl = '';
+    if (session.urlsFrame.length > 0 && session.urlsLive.length > 0) {
+      const qs = new URLSearchParams();
+      if (session.oid) qs.set('oid', session.oid);
+      if (session.filesEncoded) qs.set('f', session.filesEncoded);
+      else if (session.filenames.length > 0) {
+        qs.set('f', Buffer.from(session.filenames.join(','), 'utf8').toString('base64'));
+      }
+      liveArUrl = `/live-ar?${qs.toString()}`;
+    }
+
+    return res.render('client/download', {
+      profileImg:
+        process.env.PROFILE_IMG_URL ||
+        'https://photobinc.erafmunj.com/wp-content/uploads/2026/09/Insta_Saver_@photobinc_dp_HD-1.jpg',
+      oid: session.oid,
+      totalPosts,
+      isUploadComplete: session.isUploadComplete,
+      liveArUrl,
+      mediaItems,
+      availableCats,
+    });
+  } catch (err) {
+    return res.status(500).send(`Terjadi kesalahan memuat galeri: ${err.message}`);
+  }
+};
+
+exports.renderLiveArPage = async (req, res) => {
+  try {
+    const session = await resolveSessionMedia(req);
+    const frameUrls = session.urlsFrame.map((x) => x.url);
+    const liveUrls = session.urlsLive.map((x) => x.url);
+
+    return res.render('client/live-ar', {
+      frameUrls,
+      liveUrls,
+      previewFrameUrl: frameUrls[0] || '',
+      isNewspaperHint: session.isNewspaperHint,
+    });
+  } catch (err) {
+    return res.status(500).send(`Terjadi kesalahan memuat Live AR: ${err.message}`);
+  }
+};

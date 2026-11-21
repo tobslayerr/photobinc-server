@@ -1,0 +1,229 @@
+<%- include('partials/header') %>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  .pb-admin-header {
+    background: linear-gradient(135deg, #1e293b, #0f172a); color: #fff; padding: 28px 30px;
+    border-radius: 14px; margin-bottom: 22px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;
+  }
+  .pb-revenue { font-size: 34px; font-weight: 900; color: #10b981; margin-top: 4px; }
+  .pb-filter-bar {
+    background: #fff; padding: 18px 20px; border-radius: 12px; margin-bottom: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #e2e8f0;
+  }
+  .pb-filter-bar select, .pb-filter-bar input[type="date"] {
+    padding: 9px 14px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 13.5px;
+  }
+  .pb-chart-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 28px; }
+  .pb-chart-box { background: #fff; padding: 22px; border-radius: 12px; border: 1px solid #e2e8f0; text-align: center; }
+  .pb-chart-title { font-size: 15px; font-weight: 800; color: #334155; margin: 0 0 18px; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px; }
+  .table-wrap { background: #fff; border-radius: 12px; overflow-x: auto; border: 1px solid #e2e8f0; }
+  .pb-admin-table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 820px; }
+  .pb-admin-table th, .pb-admin-table td { padding: 16px 18px; text-align: left; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  .pb-admin-table th { background: #f8fafc; font-weight: 800; color: #475569; text-transform: uppercase; font-size: 12px; }
+  .pb-badge { display: inline-block; padding: 4px 9px; border-radius: 6px; font-size: 11.5px; font-weight: 700; background: #e2e8f0; color: #334155; }
+  .pb-badge-addon { background: #fef3c7; color: #b45309; }
+  .pb-tag { font-weight: 800; font-size: 11px; margin-left: 6px; border: 1px solid; padding: 2px 6px; border-radius: 4px; display: inline-block; }
+  .pb-file-list { margin: 8px 0 0; padding: 0 0 0 16px; font-size: 11.5px; color: #64748b; }
+  .pb-link-btn { display: inline-flex; align-items: center; gap: 5px; background: #e0f2fe; color: #0369a1; padding: 5px 10px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 12px; }
+  .fav-grid { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 18px; }
+  .fav-card {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px;
+    width: 195px; text-align: center; position: relative; overflow: hidden;
+  }
+  .fav-count {
+    position: absolute; top: 8px; right: 8px; background: #ef4444; color: #fff;
+    font-weight: 900; font-size: 13px; padding: 4px 10px; border-radius: 99px;
+  }
+  .fav-card img { width: 100%; height: 190px; object-fit: contain; border: 1px dashed #cbd5e1; margin-bottom: 10px; background: #f8fafc; border-radius: 6px; }
+</style>
+
+<div class="pb-admin-header">
+  <div>
+    <h1 style="margin:0 0 6px; font-size:26px;">Dashboard Penjualan Photobinc</h1>
+    <p style="margin:0; color:#94a3b8; font-size:14px;">Pantau performa paket, frame, dan riwayat transaksi secara real-time (WIB).</p>
+  </div>
+  <div style="text-align:right;">
+    <div style="font-size:12px; font-weight:700; color:#94a3b8; letter-spacing:1px;">TOTAL PENDAPATAN (FILTER)</div>
+    <div class="pb-revenue">Rp <%= Number(totalRevenue).toLocaleString('id-ID') %></div>
+  </div>
+</div>
+
+<div class="pb-filter-bar">
+  <form method="GET" action="/admin/sales" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; width:100%;">
+    <select name="filter" id="pb-filter-select" onchange="toggleDateRange()">
+      <option value="all" <%= filter === 'all' ? 'selected' : '' %>>Semua Waktu</option>
+      <option value="today" <%= filter === 'today' ? 'selected' : '' %>>Hari Ini (WIB)</option>
+      <option value="week" <%= filter === 'week' ? 'selected' : '' %>>Minggu Ini (WIB)</option>
+      <option value="range" <%= filter === 'range' ? 'selected' : '' %>>Rentang Tanggal</option>
+    </select>
+    <div id="pb-date-range" style="display:<%= filter === 'range' ? 'flex' : 'none' %>; gap:8px; align-items:center;">
+      <input type="date" name="start_date" value="<%= startDate %>" />
+      <span style="color:#64748b; font-weight:700;">s/d</span>
+      <input type="date" name="end_date" value="<%= endDate %>" />
+    </div>
+    <button type="submit" class="pb-btn"><i class="ri-filter-3-line"></i> Terapkan Filter</button>
+    <a href="/admin/sales/export-excel?filter=<%= encodeURIComponent(filter) %>&start_date=<%= encodeURIComponent(startDate) %>&end_date=<%= encodeURIComponent(endDate) %>" class="pb-btn pb-btn-green" style="margin-left:auto;" target="_blank">
+      <i class="ri-file-excel-2-line"></i> Export ke Excel
+    </a>
+  </form>
+</div>
+
+<div class="pb-chart-row">
+  <div class="pb-chart-box"><h3 class="pb-chart-title">Paket Utama Terjual</h3><canvas id="chartPackages" height="200"></canvas></div>
+  <div class="pb-chart-box"><h3 class="pb-chart-title">Desain Frame Terfavorit</h3><canvas id="chartFrames" height="200"></canvas></div>
+  <div class="pb-chart-box"><h3 class="pb-chart-title">Cetak Tambahan (Add-on)</h3><canvas id="chartAddons" height="200"></canvas></div>
+</div>
+
+<div class="table-wrap">
+  <table class="pb-admin-table">
+    <thead>
+      <tr>
+        <th>WAKTU & INVOICE</th>
+        <th>ITEM & FRAME</th>
+        <th>DOKUMENTASI MEDIA</th>
+        <th>TOTAL BAYAR</th>
+        <th style="text-align:right;">AKSI</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (groupedList.length === 0) { %>
+        <tr><td colspan="5" style="text-align:center; padding:42px; color:#94a3b8; font-weight:600;">Belum ada transaksi lunas pada filter ini.</td></tr>
+      <% } else { %>
+        <% groupedList.forEach(function(data) { %>
+          <tr id="row-<%= data.order_id %>">
+            <td>
+              <div style="font-weight:800; color:#0f172a; margin-bottom:4px;"><%= data.order_id %></div>
+              <div style="color:#64748b; font-size:12.5px;"><i class="ri-calendar-line"></i> <%= data.date %> WIB</div>
+            </td>
+            <td style="line-height:1.7;">
+              <% data.items.forEach(function(item) { %>
+                <div style="margin-bottom:10px;">
+                  <span class="pb-badge <%= item.is_addon ? 'pb-badge-addon' : '' %>">
+                    <%= item.is_addon ? 'ADDON: ' : 'PAKET: ' %><%= item.name %>
+                  </span>
+                  <% if (item.frame) { %>
+                    <span style="font-size:12.5px; color:#64748b; font-weight:600;"> &bull; <%= item.frame %></span>
+                  <% } %>
+                  <% if (item.print_status === 1) { %>
+                    <span class="pb-tag" style="color:#10b981; border-color:#10b981;">DICETAK</span>
+                  <% } else { %>
+                    <span class="pb-tag" style="color:#f59e0b; border-color:#f59e0b;">ANTREAN</span>
+                  <% } %>
+                  <span class="pb-tag" style="color:<%= item.payment_method === 'CASH' ? '#10b981' : '#3b82f6' %>; border-color:<%= item.payment_method === 'CASH' ? '#10b981' : '#3b82f6' %>;">
+                    <%= item.payment_method %>
+                  </span>
+                </div>
+              <% }) %>
+            </td>
+            <td>
+              <% data.items.forEach(function(item) { %>
+                <% if (item.link || item.files.length > 0) { %>
+                  <div style="margin-bottom:10px; background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0;">
+                    <% if (item.link) { %>
+                      <a href="<%= item.link %>" target="_blank" class="pb-link-btn">
+                        <i class="ri-external-link-line"></i> Buka <%= item.is_addon ? 'Album Addon' : 'Album Utama' %>
+                      </a>
+                    <% } %>
+                    <% if (item.files.length > 0) { %>
+                      <ul class="pb-file-list">
+                        <% item.files.forEach(function(f) { %><li><%= f %></li><% }) %>
+                      </ul>
+                    <% } %>
+                  </div>
+                <% } %>
+              <% }) %>
+            </td>
+            <td style="font-weight:800; color:#10b981; font-size:15px;">Rp <%= Number(data.total).toLocaleString('id-ID') %></td>
+            <td style="text-align:right;">
+              <button type="button" class="pb-btn pb-btn-soft-red" onclick="deleteInvoice('<%= data.order_id %>')">
+                <i class="ri-delete-bin-line"></i> Hapus
+              </button>
+            </td>
+          </tr>
+        <% }) %>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+
+<h3 style="background:#059669; color:#fff; padding:12px 16px; margin-top:36px; border-radius:10px; display:flex; align-items:center; gap:8px;">
+  <i class="ri-trophy-line"></i> Gambar Desain Frame Terfavorit (Keseluruhan)
+</h3>
+
+<% if (favoriteFrames.length > 0) { %>
+  <div class="fav-grid">
+    <% favoriteFrames.forEach(function(stat) { %>
+      <div class="fav-card">
+        <div class="fav-count"><%= stat.qty %>x</div>
+        <img src="<%= stat.url || 'https://placehold.co/150x200?text=No+Image' %>" alt="<%= stat.label %>" />
+        <strong style="display:block; color:#1e293b; font-size:13px;"><%= stat.label %></strong>
+        <span style="color:#64748b; font-size:12px;">Digunakan <%= stat.qty %> Kali</span>
+      </div>
+    <% }) %>
+  </div>
+<% } else { %>
+  <div style="background:#fff; padding:20px; border-radius:10px; border:1px solid #e2e8f0; color:#64748b;">
+    Belum ada data cetak frame yang lunas.
+  </div>
+<% } %>
+
+<script>
+  function toggleDateRange() {
+    const val = document.getElementById('pb-filter-select').value;
+    document.getElementById('pb-date-range').style.display = val === 'range' ? 'flex' : 'none';
+  }
+
+  const pkgData = <%- JSON.stringify([chartPackages.STRIP, chartPackages.NEWS, chartPackages.STRIP_PROMO]) %>;
+  const addonData = <%- JSON.stringify([chartAddons.STRIP, chartAddons.NEWS, chartAddons.STRIP_PROMO]) %>;
+  const frameLabels = <%- JSON.stringify(Object.keys(chartFrames)) %>;
+  const frameValues = <%- JSON.stringify(Object.values(chartFrames)) %>;
+
+  new Chart(document.getElementById('chartPackages'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Strip', 'Newspaper', 'Strip Promo'],
+      datasets: [{ data: pkgData, backgroundColor: ['#3b82f6', '#10b981', '#ef4444'] }]
+    }
+  });
+
+  new Chart(document.getElementById('chartAddons'), {
+    type: 'bar',
+    data: {
+      labels: ['Strip', 'Newspaper', 'Strip Promo'],
+      datasets: [{ label: 'Add-on Terjual', data: addonData, backgroundColor: '#f59e0b' }]
+    },
+    options: { scales: { y: { beginAtZero: true } } }
+  });
+
+  new Chart(document.getElementById('chartFrames'), {
+    type: 'pie',
+    data: {
+      labels: frameLabels,
+      datasets: [{
+        data: frameValues,
+        backgroundColor: [
+          '#ef4444','#f97316','#f59e0b','#eab308','#84cc16','#22c55e','#10b981',
+          '#14b8a6','#06b6d4','#0ea5e9','#3b82f6','#6366f1','#8b5cf6','#a855f7',
+          '#d946ef','#ec4899','#f43f5e','#dc2626','#ea580c','#d97706','#0284c7'
+        ]
+      }]
+    }
+  });
+
+  async function deleteInvoice(orderId) {
+    if (!confirm('Yakin hapus invoice ini beserta SELURUH file foto & videonya di ImageKit.io?')) return;
+    try {
+      const res = await fetch('/admin/sales/' + encodeURIComponent(orderId), { method: 'DELETE' });
+      const json = await res.json();
+      if (json.success) {
+        const row = document.getElementById('row-' + orderId);
+        if (row) row.remove();
+      } else {
+        alert(json.message || 'Gagal menghapus invoice.');
+      }
+    } catch (e) {
+      alert('Terjadi kesalahan jaringan.');
+    }
+  }
+</script>
+<%- include('partials/footer') %>

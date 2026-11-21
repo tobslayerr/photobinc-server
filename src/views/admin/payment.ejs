@@ -1,0 +1,84 @@
+<%- include('partials/header') %>
+<div style="background:#fff; padding:26px; border:2px solid #111; border-radius:14px; box-shadow:6px 6px 0 #111; max-width:760px;">
+  <h1 style="border-bottom:2px solid #111; padding-bottom:12px; margin-top:0; font-size:22px;">
+    <i class="ri-bank-card-line"></i> PENGATURAN MODE PEMBAYARAN
+  </h1>
+
+  <% if (flashMsg) { %><div class="alert-ok"><%= flashMsg %></div><% } %>
+
+  <form method="POST" action="/admin/payment/save">
+    <div style="margin-bottom:20px;">
+      <label style="display:block; font-weight:800; margin-bottom:8px;">Metode Utama Gateway?</label>
+      <select name="ef_pb_use_midtrans" style="width:100%; max-width:420px; padding:10px 12px; border:2px solid #111; border-radius:8px; font-weight:600;">
+        <option value="yes" <%= setting.use_midtrans === 'yes' ? 'selected' : '' %>>Ya, Otomatis via Midtrans Snap</option>
+        <option value="no" <%= setting.use_midtrans !== 'yes' ? 'selected' : '' %>>Tidak, Manual Upload QRIS (ACC Operator)</option>
+      </select>
+      <p style="color:#dc2626; font-weight:700; font-size:12.5px; margin:6px 0 0;">
+        Pilih 'Tidak' jika Midtrans gangguan atau ingin menggunakan rekening/QRIS manual dengan konfirmasi Operator.
+      </p>
+    </div>
+
+    <div style="margin-bottom:22px;">
+      <label style="display:block; font-weight:800; margin-bottom:8px;">Gambar QRIS (Mode Manual)</label>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <input type="text" name="ef_pb_manual_qris_url" id="qris_image_url" value="<%= setting.manual_qris_url %>" style="flex:1; min-width:240px; padding:10px; border:2px solid #111; border-radius:8px;" placeholder="https://ik.imagekit.io/..." />
+        <input type="hidden" name="manual_qris_file_id" id="manual_qris_file_id" value="<%= setting.manual_qris_file_id || '' %>" />
+        <input type="file" id="qris_file_picker" accept="image/*" style="display:none;" />
+        <button type="button" id="btn_upload_qris" class="pb-btn pb-btn-dark"><i class="ri-upload-cloud-2-line"></i> Upload QRIS</button>
+      </div>
+      <div style="margin-top:16px;">
+        <img id="qris_preview" src="<%= setting.manual_qris_url %>" style="max-width:220px; border:3px dashed #111; padding:10px; border-radius:10px; <%= setting.manual_qris_url ? '' : 'display:none;' %>" />
+      </div>
+    </div>
+
+    <button type="submit" class="pb-btn pb-btn-green" style="color:#111; border:2px solid #111; box-shadow:3px 3px 0 #111;">
+      <i class="ri-save-line"></i> Simpan Mode Pembayaran
+    </button>
+  </form>
+</div>
+
+<script>
+  const picker = document.getElementById('qris_file_picker');
+  const btn = document.getElementById('btn_upload_qris');
+  btn.addEventListener('click', () => { picker.value = ''; picker.click(); });
+
+  picker.addEventListener('change', async function () {
+    const file = this.files[0];
+    if (!file) return;
+    const orig = btn.innerHTML;
+    btn.innerHTML = 'Mengunggah...';
+    btn.disabled = true;
+
+    try {
+      const authRes = await fetch('/admin/api/imagekit-auth');
+      const authJson = await authRes.json();
+      if (!authJson.success) throw new Error('Gagal auth ImageKit');
+
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('fileName', 'qris_' + Date.now() + '_' + file.name);
+      fd.append('publicKey', authJson.data.publicKey);
+      fd.append('signature', authJson.data.signature);
+      fd.append('expire', String(authJson.data.expire));
+      fd.append('token', authJson.data.token);
+      fd.append('folder', '/photobooth/qris');
+      fd.append('useUniqueFileName', 'true');
+
+      const upRes = await fetch('https://upload.imagekit.io/api/v1/files/upload', { method: 'POST', body: fd });
+      const upJson = await upRes.json();
+      if (!upRes.ok || !upJson.url) throw new Error(upJson.message || 'Upload gagal');
+
+      document.getElementById('qris_image_url').value = upJson.url;
+      document.getElementById('manual_qris_file_id').value = upJson.fileId || '';
+      const preview = document.getElementById('qris_preview');
+      preview.src = upJson.url;
+      preview.style.display = 'block';
+    } catch (e) {
+      alert('Gagal upload QRIS: ' + e.message);
+    } finally {
+      btn.innerHTML = orig;
+      btn.disabled = false;
+    }
+  });
+</script>
+<%- include('partials/footer') %>

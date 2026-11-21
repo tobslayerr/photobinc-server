@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Photobinc Live Photo AR</title>
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@600;800;900&family=Space+Mono:wght@700&display=swap');
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+    #pbar-scene-container { position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; overflow: hidden; z-index: 1; background: transparent; }
+    .pbar-overlay { position: fixed; inset: 0; z-index: 99999; background-color: #12121a; background-image: linear-gradient(rgba(74,222,128,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(74,222,128,0.08) 1px, transparent 1px); background-size: 28px 28px; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .pbar-card { background: #fff; border: 4px solid #111; box-shadow: 10px 10px 0 #4ade80; border-radius: 20px; padding: 26px 22px; max-width: 400px; width: 100%; text-align: center; }
+    .pbar-arcade-badge { display: inline-flex; align-items: center; gap: 6px; background: #111; color: #facc15; font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700; letter-spacing: 1px; padding: 5px 12px; border-radius: 99px; margin-bottom: 14px; text-transform: uppercase; }
+    .pbar-preview-wrap { position: relative; display: inline-block; margin: 0 auto 14px; }
+    .pbar-preview-img { width: 118px; max-height: 165px; object-fit: contain; border: 3px solid #111; box-shadow: 5px 5px 0 #111; border-radius: 12px; display: block; background: #e2e8f0; }
+    .pbar-preview-tag { position: absolute; bottom: -8px; right: -12px; background: #c084fc; color: #111; border: 2.5px solid #111; box-shadow: 2px 2px 0 #111; font-family: 'Space Mono', monospace; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 6px; transform: rotate(-4deg); }
+    .pbar-title { font-size: 23px; font-weight: 900; color: #111; margin: 4px 0 8px; text-transform: uppercase; letter-spacing: -0.5px; }
+    .pbar-desc { font-size: 13.5px; font-weight: 600; color: #334155; line-height: 1.5; margin: 0 0 18px; }
+    .pbar-btn { width: 100%; padding: 15px 18px; font-size: 15px; font-weight: 900; text-transform: uppercase; border: 4px solid #111; box-shadow: 6px 6px 0 #111; border-radius: 12px; cursor: pointer; background: #4ade80; color: #111; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+    .pbar-btn:active { transform: translate(4px, 4px); box-shadow: 2px 2px 0 #111; }
+    .pbar-btn:disabled { background: #facc15; cursor: wait; }
+    .pbar-progress-wrap { width: 100%; height: 16px; background: #1e293b; border: 3px solid #111; border-radius: 99px; overflow: hidden; margin-top: 14px; padding: 2px; }
+    .pbar-progress-fill { width: 10%; height: 100%; background: linear-gradient(90deg, #4ade80, #38bdf8, #c084fc); border-radius: 99px; transition: width 0.2s; }
+    .pbar-hud-top { position: fixed; top: max(16px, env(safe-area-inset-top)); left: 14px; right: 14px; z-index: 9999; display: none; justify-content: space-between; align-items: center; gap: 8px; }
+    .pbar-hud-right { display: flex; align-items: center; gap: 8px; }
+    .pbar-hud-btn { background: #fff; color: #111; border: 3px solid #111; box-shadow: 4px 4px 0 #111; border-radius: 12px; padding: 9px 12px; font-size: 12px; font-weight: 900; text-transform: uppercase; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+    .pbar-hud-btn.flash-on { background: #facc15; }
+    .pbar-hud-btn.focus-active { background: #38bdf8; }
+    .pbar-focus-ring { position: fixed; width: 74px; height: 74px; border: 3px solid #facc15; border-radius: 14px; box-shadow: 0 0 14px rgba(250,204,21,0.8); pointer-events: none; z-index: 9995; transform: translate(-50%, -50%) scale(1.3); opacity: 0; transition: transform 0.22s ease-out, opacity 0.22s ease-out; }
+    .pbar-focus-ring.show { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    .pbar-reticle { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(64vw, 240px); height: min(62vh, 460px); z-index: 9990; pointer-events: none; display: none; transition: opacity 0.18s ease, transform 0.18s ease, width 0.2s ease, height 0.2s ease; }
+    .pbar-reticle.newspaper-mode { width: min(76vw, 310px); height: min(64vh, 440px); }
+    .pbar-reticle.hidden { opacity: 0; transform: translate(-50%, -50%) scale(1.06); }
+    .pbar-corner { position: absolute; width: 30px; height: 30px; border: 5px solid #4ade80; filter: drop-shadow(0 0 6px rgba(74,222,128,0.7)); }
+    .pbar-corner.tl { top: 0; left: 0; border-right: none; border-bottom: none; border-radius: 8px 0 0 0; }
+    .pbar-corner.tr { top: 0; right: 0; border-left: none; border-bottom: none; border-radius: 0 8px 0 0; }
+    .pbar-corner.bl { bottom: 0; left: 0; border-right: none; border-top: none; border-radius: 0 0 0 8px; }
+    .pbar-corner.br { bottom: 0; right: 0; border-left: none; border-top: none; border-radius: 0 0 8px 0; }
+    .pbar-laser { position: absolute; left: 8px; right: 8px; height: 3px; background: #4ade80; box-shadow: 0 0 12px #4ade80; border-radius: 99px; animation: pbarLaserScan 2.2s ease-in-out infinite; }
+    @keyframes pbarLaserScan { 0%, 100% { top: 8%; opacity: 0.4; } 50% { top: 90%; opacity: 1; } }
+    .pbar-reticle-tag { position: absolute; top: -28px; left: 50%; transform: translateX(-50%); background: rgba(17,17,17,0.82); color: #4ade80; border: 2px solid #4ade80; font-family: 'Space Mono', monospace; font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 99px; white-space: nowrap; }
+    .pbar-hud-bottom { position: fixed; bottom: max(22px, env(safe-area-inset-bottom)); left: 16px; right: 16px; z-index: 9999; display: none; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; }
+    .pbar-scan-pill { background: #facc15; color: #111; border: 3px solid #111; box-shadow: 5px 5px 0 #111; border-radius: 99px; padding: 11px 20px; font-size: 13px; font-weight: 900; text-align: center; text-transform: uppercase; }
+    .pbar-toast { background: #111; color: #facc15; border: 2px solid #facc15; border-radius: 10px; padding: 6px 12px; font-size: 11.5px; font-weight: 800; display: none; }
+    .pbar-tap-hint { font-family: 'Space Mono', monospace; font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.82); text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
+    .spin-anim { animation: pbarSpin 1s linear infinite; display: inline-block; }
+    @keyframes pbarSpin { 100% { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <% if (frameUrls.length === 0 || liveUrls.length === 0) { %>
+    <div class="pbar-overlay">
+      <div class="pbar-card">
+        <i class="ri-error-warning-fill" style="font-size:56px; color:#ef4444; display:block; margin-bottom:10px;"></i>
+        <h2 class="pbar-title">Data Live AR Belum Siap</h2>
+        <p class="pbar-desc">Pastikan tautan memiliki file <strong>Foto</strong> dan <strong>Live Photo (.mp4)</strong> yang sudah selesai diunggah.</p>
+        <button type="button" onclick="window.history.back();" class="pbar-btn" style="background:#facc15;"><i class="ri-arrow-left-line"></i> KEMBALI KE DOWNLOAD</button>
+      </div>
+    </div>
+  <% } else { %>
+    <div id="pbar-start-overlay" class="pbar-overlay">
+      <div class="pbar-card">
+        <div class="pbar-arcade-badge"><i class="ri-gamepad-fill"></i> PHOTOBINC AR MODE</div>
+        <div class="pbar-preview-wrap">
+          <img src="<%= previewFrameUrl %>" alt="Target Foto" class="pbar-preview-img" />
+          <span id="pbar-preview-tag" class="pbar-preview-tag"><%= isNewspaperHint ? 'A4 LIVE' : 'LIVE AR' %></span>
+        </div>
+        <h1 id="pbar-main-title" class="pbar-title"><%= isNewspaperHint ? 'SCAN NEWSPAPER A4' : 'SCAN FOTO STRIP' %></h1>
+        <p id="pbar-main-desc" class="pbar-desc">
+          <% if (isNewspaperHint) { %>
+            Tunjukkan lembar <strong>Newspaper A4</strong> kamu ke kamera untuk menghidupkan momen <strong>Live Photo</strong> secara penuh!
+          <% } else { %>
+            Tunjukkan foto strip kamu ke kamera untuk menghidupkan momen <strong>Live Photo</strong> secara langsung!
+          <% } %>
+        </p>
+        <button type="button" id="pbar-btn-launch" class="pbar-btn" disabled><i class="ri-loader-4-line spin-anim"></i> LOADING AR...</button>
+        <div id="pbar-progress-wrap" class="pbar-progress-wrap"><div id="pbar-progress-fill" class="pbar-progress-fill"></div></div>
+        <div id="pbar-status-msg" style="font-family:'Space Mono',monospace; font-size:11.5px; font-weight:700; color:#475569; margin-top:10px;">Menyiapkan scanner foto...</div>
+        <div style="margin-top:16px;">
+          <button type="button" onclick="window.history.back();" style="background:none; border:none; color:#64748b; font-weight:800; font-size:13px; text-decoration:underline; cursor:pointer;">&larr; Kembali ke Halaman Download</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="pbar-hud-top" class="pbar-hud-top">
+      <button type="button" onclick="window.history.back();" class="pbar-hud-btn"><i class="ri-arrow-left-line"></i> KEMBALI</button>
+      <div class="pbar-hud-right">
+        <button type="button" id="pbar-btn-focus" class="pbar-hud-btn focus-active"><i class="ri-focus-3-line"></i> FOKUS</button>
+        <button type="button" id="pbar-btn-flash" class="pbar-hud-btn"><i class="ri-flashlight-line"></i> FLASH</button>
+      </div>
+    </div>
+
+    <div id="pbar-focus-ring" class="pbar-focus-ring"></div>
+
+    <div id="pbar-reticle" class="pbar-reticle <%= isNewspaperHint ? 'newspaper-mode' : '' %>">
+      <div id="pbar-reticle-tag" class="pbar-reticle-tag"><%= isNewspaperHint ? 'SCAN NEWSPAPER A4...' : 'SCANNING STRIP...' %></div>
+      <div class="pbar-corner tl"></div><div class="pbar-corner tr"></div>
+      <div class="pbar-corner bl"></div><div class="pbar-corner br"></div>
+      <div class="pbar-laser"></div>
+    </div>
+
+    <div id="pbar-hud-bottom" class="pbar-hud-bottom">
+      <div id="pbar-toast" class="pbar-toast"></div>
+      <div id="pbar-scan-pill" class="pbar-scan-pill"><%= isNewspaperHint ? 'Tunjukkan lembar A4 kamu ke kamera...' : 'Tunjukkan foto strip kamu ke kamera...' %></div>
+      <div class="pbar-tap-hint">TAP LAYAR UNTUK FOKUS KAMERA</div>
+    </div>
+
+    <div id="pbar-scene-container"></div>
+
+    <script>
+      (function() {
+        const FRAME_URLS        = <%- JSON.stringify(frameUrls) %>;
+        const LIVE_URLS         = <%- JSON.stringify(liveUrls) %>;
+        const IS_NEWSPAPER_HINT = <%= isNewspaperHint ? 'true' : 'false' %>;
+
+        const SESSION_NCC_THRESHOLD = 0.35;
+        const LOCK_GRACE_MS         = 600;
+        const SAMPLE_GRID_X         = [-0.34, -0.20, -0.07, 0.07, 0.20, 0.34];
+        const SAMPLE_GRID_Y_NORM    = [-0.26, -0.20, -0.14, -0.08, -0.02, 0.04, 0.10, 0.16, 0.22, 0.26];
+
+        const btnLaunch    = document.getElementById('pbar-btn-launch');
+        const startOverlay = document.getElementById('pbar-start-overlay');
+        const progWrap     = document.getElementById('pbar-progress-wrap');
+        const progFill     = document.getElementById('pbar-progress-fill');
+        const statusMsg    = document.getElementById('pbar-status-msg');
+        const mainTitle    = document.getElementById('pbar-main-title');
+        const mainDesc     = document.getElementById('pbar-main-desc');
+        const previewTag   = document.getElementById('pbar-preview-tag');
+        const reticleTag   = document.getElementById('pbar-reticle-tag');
+        const hudTop       = document.getElementById('pbar-hud-top');
+        const hudBottom    = document.getElementById('pbar-hud-bottom');
+        const reticleEl    = document.getElementById('pbar-reticle');
+        const focusRing    = document.getElementById('pbar-focus-ring');
+        const scanPill     = document.getElementById('pbar-scan-pill');
+        const btnFlash     = document.getElementById('pbar-btn-flash');
+        const btnFocus     = document.getElementById('pbar-btn-focus');
+        const toastEl      = document.getElementById('pbar-toast');
+        const sceneHolder  = document.getElementById('pbar-scene-container');
+
+        function applyModeWording(isNews) {
+          if (isNews) {
+            previewTag.innerText = 'A4 LIVE';
+            mainTitle.innerText = 'SCAN NEWSPAPER A4';
+            mainDesc.innerHTML = 'Tunjukkan lembar <strong>Newspaper A4</strong> kamu ke kamera untuk menghidupkan momen <strong>Live Photo</strong> secara penuh!';
+            reticleTag.innerText = 'SCAN NEWSPAPER A4...';
+            scanPill.innerText = 'Tunjukkan lembar A4 kamu ke kamera...';
+            reticleEl.classList.add('newspaper-mode');
+          } else {
+            previewTag.innerText = 'LIVE AR';
+            mainTitle.innerText = 'SCAN FOTO STRIP';
+            mainDesc.innerHTML = 'Tunjukkan foto strip kamu ke kamera untuk menghidupkan momen <strong>Live Photo</strong> secara langsung!';
+            reticleTag.innerText = 'SCANNING STRIP...';
+            scanPill.innerText = 'Tunjukkan foto strip kamu ke kamera...';
+            reticleEl.classList.remove('newspaper-mode');
+          }
+        }
+
+        function showToast(msg) {
+          toastEl.innerText = msg; toastEl.style.display = 'block';
+          clearTimeout(window._pbarToastTimer);
+          window._pbarToastTimer = setTimeout(() => { toastEl.style.display = 'none'; }, 2200);
+        }
+
+        function loadScriptAsync(src) {
+          return new Promise((resolve, reject) => {
+            if (document.querySelector('script[src="' + src + '"]')) return resolve();
+            const s = document.createElement('script');
+            s.src = src; s.onload = resolve; s.onerror = () => reject(new Error('Gagal memuat: ' + src));
+            document.head.appendChild(s);
+          });
+        }
+
+        async function getMindARCompilerClass() {
+          try {
+            const mod = await import('https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js');
+            if (mod && mod.Compiler) return mod.Compiler;
+            if (window.MINDAR?.IMAGE?.Compiler) return window.MINDAR.IMAGE.Compiler;
+          } catch (e) {}
+          await loadScriptAsync('https://cdn.jsdelivr.net/npm/mind-ar@1.1.5/dist/mindar-image.prod.js');
+          if (window.MINDAR?.IMAGE?.Compiler) return window.MINDAR.IMAGE.Compiler;
+          throw new Error('Browser tidak mendukung MindAR Compiler.');
+        }
+
+        function isNewspaperDimension(w, h) {
+          if (!w || !h) return IS_NEWSPAPER_HINT;
+          const wh = w / h;
+          if (wh >= 0.692 && wh <= 0.725) return true;
+          if (IS_NEWSPAPER_HINT && wh >= 0.685 && wh <= 0.740) return true;
+          return false;
+        }
+
+        function extractFingerprint(sourceCanvas) {
+          const fpW = 48, fpH = 144;
+          const c = document.createElement('canvas'); c.width = fpW; c.height = fpH;
+          const ctx = c.getContext('2d', { willReadFrequently: true });
+          ctx.drawImage(sourceCanvas, 0, 0, fpW, fpH);
+          const data = ctx.getImageData(0, 0, fpW, fpH).data;
+          const rArr = [], gArr = [], bArr = [];
+          for (let yi = 0; yi < SAMPLE_GRID_Y_NORM.length; yi++) {
+            const py = Math.max(0, Math.min(fpH - 1, Math.floor((0.5 - SAMPLE_GRID_Y_NORM[yi]) * fpH)));
+            for (let xi = 0; xi < SAMPLE_GRID_X.length; xi++) {
+              const px = Math.max(0, Math.min(fpW - 1, Math.floor((SAMPLE_GRID_X[xi] + 0.5) * fpW)));
+              const idx = (py * fpW + px) * 4;
+              rArr.push(data[idx]); gArr.push(data[idx + 1]); bArr.push(data[idx + 2]);
+            }
+          }
+          return { r: rArr, g: gArr, b: bArr };
+        }
+
+        function calcChannelNCC(a, b, valid) {
+          const n = valid.length; if (n < 12) return -1;
+          let sumA = 0, sumB = 0;
+          for (let k = 0; k < n; k++) { sumA += a[valid[k]]; sumB += b[valid[k]]; }
+          const meanA = sumA / n, meanB = sumB / n;
+          let num = 0, denA = 0, denB = 0;
+          for (let k = 0; k < n; k++) {
+            const da = a[valid[k]] - meanA, db = b[valid[k]] - meanB;
+            num += da * db; denA += da * da; denB += db * db;
+          }
+          const den = Math.sqrt(denA * denB);
+          return den > 1e-4 ? (num / den) : 0;
+        }
+
+        function calcRGBNCC(camFp, refFp, valid) {
+          return (calcChannelNCC(camFp.r, refFp.r, valid) + calcChannelNCC(camFp.g, refFp.g, valid) + calcChannelNCC(camFp.b, refFp.b, valid)) / 3;
+        }
+
+        function processSingleFrame(url, targetHeight) {
+          return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = function() {
+              const fullW = img.naturalWidth, fullH = img.naturalHeight;
+              if (isNewspaperDimension(fullW, fullH)) {
+                const aspectRatio = fullH / fullW;
+                const outH = Math.min(fullH, targetHeight);
+                const outW = Math.round(outH / aspectRatio);
+                const canvas = document.createElement('canvas'); canvas.width = outW; canvas.height = outH;
+                canvas.getContext('2d').drawImage(img, 0, 0, fullW, fullH, 0, 0, outW, outH);
+                const fp = extractFingerprint(canvas);
+                const outImg = new Image();
+                outImg.onload = () => resolve({ mode: 'newspaper', fullImg: outImg, fullFp: fp, aspectRatio });
+                outImg.onerror = reject;
+                outImg.src = canvas.toDataURL('image/jpeg', 0.90);
+                return;
+              }
+              const halfW = Math.floor(fullW / 2);
+              const stripAspectRatio = fullH / halfW;
+              const outH = Math.min(fullH, targetHeight);
+              const outW = Math.round(outH / stripAspectRatio);
+              const cropHalf = (sx) => new Promise((resC, rejC) => {
+                const canvas = document.createElement('canvas'); canvas.width = outW; canvas.height = outH;
+                canvas.getContext('2d').drawImage(img, sx, 0, halfW, fullH, 0, 0, outW, outH);
+                const fp = extractFingerprint(canvas);
+                const outImg = new Image();
+                outImg.onload = () => resC({ img: outImg, fp });
+                outImg.onerror = rejC;
+                outImg.src = canvas.toDataURL('image/jpeg', 0.90);
+              });
+              Promise.all([cropHalf(0), cropHalf(halfW)]).then(([l, r]) => {
+                resolve({ mode: 'strip', leftImg: l.img, rightImg: r.img, leftFp: l.fp, rightFp: r.fp, aspectRatio: stripAspectRatio });
+              }).catch(reject);
+            };
+            img.onerror = () => reject(new Error('Gagal memuat gambar target foto.'));
+            img.src = url + (url.includes('?') ? '&ar_t=' : '?ar_t=') + Date.now();
+          });
+        }
+
+        let globalTargetMeta = [], globalFrameFps = [], compiledMindUrl = '', arIsRunning = false, activeNewspaper = IS_NEWSPAPER_HINT;
+
+        function findActiveWebcamVideo() {
+          const vids = document.querySelectorAll('video');
+          for (let i = 0; i < vids.length; i++) if (vids[i].srcObject && vids[i].videoWidth > 0) return vids[i];
+          return null;
+        }
+
+        async function enableAutoFocus() {
+          const v = findActiveWebcamVideo();
+          const track = v?.srcObject?.getVideoTracks()?.[0];
+          const caps = track?.getCapabilities?.();
+          if (caps?.focusMode?.includes('continuous')) {
+            try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch (e) {}
+          }
+        }
+
+        async function triggerCameraFocus(cx, cy, fromBtn) {
+          const fx = typeof cx === 'number' ? cx : window.innerWidth / 2;
+          const fy = typeof cy === 'number' ? cy : window.innerHeight / 2;
+          focusRing.style.left = fx + 'px'; focusRing.style.top = fy + 'px';
+          focusRing.classList.remove('show'); void focusRing.offsetWidth; focusRing.classList.add('show');
+          clearTimeout(window._pbarFocusTimer);
+          window._pbarFocusTimer = setTimeout(() => focusRing.classList.remove('show'), 650);
+
+          const v = findActiveWebcamVideo();
+          const track = v?.srcObject?.getVideoTracks()?.[0];
+          const caps = track?.getCapabilities?.();
+          const modes = Array.isArray(caps?.focusMode) ? caps.focusMode : [];
+          try {
+            if (modes.includes('single-shot')) {
+              await track.applyConstraints({ advanced: [{ focusMode: 'single-shot' }] });
+              if (modes.includes('continuous')) setTimeout(() => track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {}), 1200);
+              if (fromBtn) showToast('Kamera difokuskan!');
+            } else if (modes.includes('continuous')) {
+              await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+              if (fromBtn) showToast('Autofokus diperbarui!');
+            } else if (fromBtn) {
+              showToast('Autofokus aktif otomatis.');
+            }
+          } catch (e) { if (fromBtn) showToast('Autofokus aktif otomatis.'); }
+        }
+
+        document.addEventListener('click', e => {
+          if (!arIsRunning || e.target.closest('.pbar-hud-top, .pbar-hud-bottom, .pbar-overlay')) return;
+          triggerCameraFocus(e.clientX, e.clientY, false);
+        });
+        btnFocus.addEventListener('click', () => triggerCameraFocus(window.innerWidth / 2, window.innerHeight / 2, true));
+
+        let isFlashOn = false;
+        btnFlash.addEventListener('click', async () => {
+          const v = findActiveWebcamVideo();
+          const track = v?.srcObject?.getVideoTracks()?.[0];
+          const caps = track?.getCapabilities?.();
+          if (!caps?.torch) return showToast('Flash tidak didukung browser/HP ini.');
+          try {
+            isFlashOn = !isFlashOn;
+            await track.applyConstraints({ advanced: [{ torch: isFlashOn }] });
+            btnFlash.classList.toggle('flash-on', isFlashOn);
+            btnFlash.innerHTML = isFlashOn ? '<i class="ri-flashlight-fill"></i> ON' : '<i class="ri-flashlight-line"></i> FLASH';
+          } catch (e) { showToast('Gagal menyalakan flash.'); }
+        });
+
+        function registerCustomARComponents() {
+          if (!window.AFRAME) return;
+          if (!window.AFRAME.components['pbar-uv-split']) {
+            window.AFRAME.registerComponent('pbar-uv-split', {
+              schema: { side: { type: 'string', default: 'full' } },
+              init: function() { this.baseU = null; this.el.addEventListener('object3dset', () => this.applyUv()); this.applyUv(); },
+              update: function() { this.applyUv(); },
+              applyUv: function() {
+                const mesh = this.el.getObject3D('mesh');
+                if (!mesh?.geometry?.attributes?.uv) return;
+                if (!this.baseU) {
+                  mesh.geometry = mesh.geometry.clone();
+                  const uv = mesh.geometry.attributes.uv; this.baseU = [];
+                  for (let i = 0; i < uv.count; i++) this.baseU.push(uv.getX(i));
+                }
+                const uv = mesh.geometry.attributes.uv, mode = this.data.side;
+                for (let i = 0; i < uv.count; i++) {
+                  const u = this.baseU[i];
+                  uv.setX(i, mode === 'right' ? (0.5 + u * 0.5) : mode === 'left' ? (u * 0.5) : u);
+                }
+                uv.needsUpdate = true;
+              }
+            });
+          }
+
+          if (!window.AFRAME.components['pbar-smart-verifier']) {
+            window.AFRAME.registerComponent('pbar-smart-verifier', {
+              init: function() {
+                this.lastCheck = 0; this.posA = new window.THREE.Vector3(); this.posB = new window.THREE.Vector3(); this.tmpVec = new window.THREE.Vector3();
+                this.camCanvas = document.createElement('canvas'); this.camCanvas.width = 160; this.camCanvas.height = 120;
+                this.camCtx = this.camCanvas.getContext('2d', { willReadFrequently: true });
+                this.stateMap = {}; this.domCache = null; this.videoCache = null; this.webcamRef = null;
+              },
+              ensureCache: function() {
+                if (!this.domCache) this.domCache = globalTargetMeta.map(meta => {
+                  const el = document.getElementById('pbar-target-' + meta.targetIndex);
+                  return { meta, el, plane: el ? el.querySelector('a-video') : null };
+                });
+                if (!this.videoCache) this.videoCache = LIVE_URLS.map((_, i) => document.getElementById('pbar-video-' + i));
+                if (!this.webcamRef?.srcObject) this.webcamRef = findActiveWebcamVideo();
+              },
+              tick: function(time) {
+                const sceneEl = this.el;
+                if (!sceneEl.camera || !sceneEl.canvas) return;
+                this.ensureCache();
+                if (!this.webcamRef) return;
+
+                let hasNew = false;
+                for (let i = 0; i < this.domCache.length; i++) {
+                  const it = this.domCache[i];
+                  if (it.el?.object3D?.visible && !this.stateMap[it.meta.targetIndex]?.lockedSide) { hasNew = true; break; }
+                }
+                if (!hasNew && (time - this.lastCheck < 80)) return;
+                this.lastCheck = time;
+
+                let camImgData = null;
+                const cw = 160, ch = 120;
+                const cRect = sceneEl.canvas.getBoundingClientRect();
+                const vRect = this.webcamRef.getBoundingClientRect();
+                if (vRect.width <= 0 || vRect.height <= 0) return;
+
+                const candidates = []; let hasWrong = false;
+                for (let i = 0; i < this.domCache.length; i++) {
+                  const { meta, el, plane } = this.domCache[i];
+                  if (!el?.object3D) continue;
+                  if (!el.object3D.visible) {
+                    if (plane?.object3D) plane.object3D.visible = false;
+                    const old = this.stateMap[meta.targetIndex];
+                    if (old && (time - old.lastSeen > LOCK_GRACE_MS)) delete this.stateMap[meta.targetIndex];
+                    continue;
+                  }
+                  if (!this.stateMap[meta.targetIndex]) this.stateMap[meta.targetIndex] = { lockedSide: null, activeSince: time, lastSeen: time };
+                  const st = this.stateMap[meta.targetIndex]; st.lastSeen = time;
+
+                  if (!st.lockedSide) {
+                    if (!camImgData) { this.camCtx.drawImage(this.webcamRef, 0, 0, cw, ch); camImgData = this.camCtx.getImageData(0, 0, cw, ch).data; }
+                    const H = meta.aspectRatio, camFp = { r: [], g: [], b: [] }, valid = []; let pt = 0;
+                    for (let yi = 0; yi < SAMPLE_GRID_Y_NORM.length; yi++) {
+                      const ly = SAMPLE_GRID_Y_NORM[yi] * H;
+                      for (let xi = 0; xi < SAMPLE_GRID_X.length; xi++) {
+                        this.tmpVec.set(SAMPLE_GRID_X[xi], ly, 0).applyMatrix4(el.object3D.matrixWorld).project(sceneEl.camera);
+                        const sx = cRect.left + (this.tmpVec.x * 0.5 + 0.5) * cRect.width;
+                        const sy = cRect.top + (-this.tmpVec.y * 0.5 + 0.5) * cRect.height;
+                        const u = (sx - vRect.left) / vRect.width, v = (sy - vRect.top) / vRect.height;
+                        if (u >= 0.02 && u <= 0.98 && v >= 0.02 && v <= 0.98) {
+                          const dIdx = (Math.floor(v * ch) * cw + Math.floor(u * cw)) * 4;
+                          camFp.r.push(camImgData[dIdx]); camFp.g.push(camImgData[dIdx + 1]); camFp.b.push(camImgData[dIdx + 2]); valid.push(pt);
+                        } else { camFp.r.push(0); camFp.g.push(0); camFp.b.push(0); }
+                        pt++;
+                      }
+                    }
+                    const fFp = globalFrameFps[meta.frameIndex];
+                    if (meta.mode === 'newspaper') {
+                      if (calcRGBNCC(camFp, fFp.fullFp, valid) < SESSION_NCC_THRESHOLD) { if (plane?.object3D) plane.object3D.visible = false; hasWrong = true; continue; }
+                      st.lockedSide = 'full';
+                    } else {
+                      const nL = calcRGBNCC(camFp, fFp.leftFp, valid), nR = calcRGBNCC(camFp, fFp.rightFp, valid);
+                      if (Math.max(nL, nR) < SESSION_NCC_THRESHOLD) { if (plane?.object3D) plane.object3D.visible = false; hasWrong = true; continue; }
+                      st.lockedSide = nR > nL ? 'right' : 'left';
+                    }
+                  }
+                  candidates.push({ el, plane, meta, st });
+                }
+
+                candidates.sort((a, b) => a.st.activeSince - b.st.activeSince);
+                const accepted = [];
+                for (let i = 0; i < candidates.length; i++) {
+                  const cand = candidates[i];
+                  cand.el.object3D.getWorldPosition(this.posA);
+                  const scaleRef = cand.el.object3D.scale.x || 1;
+                  let overlaps = false;
+                  for (let j = 0; j < accepted.length; j++) {
+                    accepted[j].el.object3D.getWorldPosition(this.posB);
+                    if (this.posA.distanceTo(this.posB) < 0.65 * scaleRef) { overlaps = true; break; }
+                  }
+                  if (overlaps) { if (cand.plane?.object3D) cand.plane.object3D.visible = false; }
+                  else {
+                    if (cand.plane) {
+                      if (cand.plane.getAttribute('pbar-uv-split')?.side !== cand.st.lockedSide) cand.plane.setAttribute('pbar-uv-split', 'side', cand.st.lockedSide);
+                      if (cand.plane.object3D) cand.plane.object3D.visible = true;
+                    }
+                    accepted.push(cand);
+                  }
+                }
+
+                const activeVideos = new Set(), hudLabels = [];
+                accepted.forEach(item => {
+                  activeVideos.add(item.meta.videoIndex);
+                  if (item.meta.mode === 'newspaper') hudLabels.push('Newspaper A4');
+                  else hudLabels.push(item.st.lockedSide === 'right' ? 'Strip Kanan' : 'Strip Kiri');
+                });
+
+                this.videoCache.forEach((vEl, vIdx) => {
+                  if (!vEl) return;
+                  if (activeVideos.has(vIdx)) { if (vEl.paused) vEl.play().catch(() => {}); }
+                  else { if (!vEl.paused) vEl.pause(); }
+                });
+
+                if (hudLabels.length > 0) {
+                  reticleEl.classList.add('hidden');
+                  scanPill.style.background = '#4ade80'; scanPill.style.color = '#111';
+                  scanPill.innerText = 'LIVE AKTIF • ' + hudLabels.join(' + ');
+                } else if (hasWrong) {
+                  reticleEl.classList.remove('hidden');
+                  scanPill.style.background = '#ef4444'; scanPill.style.color = '#fff';
+                  scanPill.innerText = activeNewspaper ? 'Lembar A4 bukan dari sesi ini!' : 'Foto bukan dari sesi ini!';
+                } else {
+                  reticleEl.classList.remove('hidden');
+                  scanPill.style.background = '#facc15'; scanPill.style.color = '#111';
+                  scanPill.innerText = activeNewspaper ? 'Tunjukkan lembar A4 kamu ke kamera...' : 'Tunjukkan foto strip kamu ke kamera...';
+                }
+              }
+            });
+          }
+        }
+
+        async function precompileInBackground() {
+          try {
+            const [CompilerClass, processed] = await Promise.all([
+              getMindARCompilerClass(),
+              Promise.all(FRAME_URLS.map(url => processSingleFrame(url, 480))),
+              loadScriptAsync('https://aframe.io/releases/1.4.2/aframe.min.js')
+            ]);
+            progFill.style.width = '30%';
+            const allTargetImages = []; globalTargetMeta = []; globalFrameFps = []; activeNewspaper = false;
+
+            processed.forEach((res, fIdx) => {
+              const vIdx = fIdx < LIVE_URLS.length ? fIdx : 0;
+              if (res.mode === 'newspaper') {
+                activeNewspaper = true;
+                globalFrameFps[fIdx] = { fullFp: res.fullFp };
+                globalTargetMeta.push({ targetIndex: allTargetImages.length, frameIndex: fIdx, videoIndex: vIdx, mode: 'newspaper', side: 'full', aspectRatio: res.aspectRatio });
+                allTargetImages.push(res.fullImg);
+              } else {
+                globalFrameFps[fIdx] = { leftFp: res.leftFp, rightFp: res.rightFp };
+                globalTargetMeta.push({ targetIndex: allTargetImages.length, frameIndex: fIdx, videoIndex: vIdx, mode: 'strip', side: 'left', aspectRatio: res.aspectRatio });
+                allTargetImages.push(res.leftImg);
+                globalTargetMeta.push({ targetIndex: allTargetImages.length, frameIndex: fIdx, videoIndex: vIdx, mode: 'strip', side: 'right', aspectRatio: res.aspectRatio });
+                allTargetImages.push(res.rightImg);
+              }
+            });
+
+            applyModeWording(activeNewspaper);
+            statusMsg.innerText = activeNewspaper ? 'Mengunci pola Newspaper A4...' : 'Mengunci pola foto strip...';
+
+            const compiler = new CompilerClass();
+            await compiler.compileImageTargets(allTargetImages, p => { progFill.style.width = Math.max(30, Math.min(92, Math.round(30 + p * 0.62))) + '%'; });
+            compiledMindUrl = URL.createObjectURL(new Blob([await compiler.exportData()], { type: 'application/octet-stream' }));
+
+            registerCustomARComponents();
+            await loadScriptAsync('https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js');
+
+            progFill.style.width = '100%'; progWrap.style.display = 'none';
+            statusMsg.style.color = '#16a34a'; statusMsg.innerText = 'READY! Tekan tombol di atas untuk mulai.';
+            btnLaunch.disabled = false; btnLaunch.innerHTML = '<i class="ri-play-fill" style="font-size:22px;"></i> MULAI SCAN AR';
+          } catch (err) {
+            statusMsg.style.color = '#ef4444'; statusMsg.innerText = 'Gagal menyiapkan AR: ' + (err.message || 'Muat ulang.');
+            btnLaunch.disabled = false; btnLaunch.innerHTML = '<i class="ri-refresh-line"></i> COBA LAGI';
+          }
+        }
+        precompileInBackground();
+
+        btnLaunch.addEventListener('click', () => {
+          if (!compiledMindUrl) return window.location.reload();
+          btnLaunch.disabled = true; btnLaunch.innerHTML = '<i class="ri-loader-4-line spin-anim"></i> MEMBUKA KAMERA...';
+
+          const assetsHtml = LIVE_URLS.map((vUrl, vIdx) =>
+            `<video id="pbar-video-${vIdx}" class="pbar-video-asset" src="${vUrl}" preload="auto" loop="true" muted="true" playsinline webkit-playsinline crossorigin="anonymous"></video>`
+          ).join('');
+
+          const entitiesHtml = globalTargetMeta.map(meta =>
+            `<a-entity id="pbar-target-${meta.targetIndex}" mindar-image-target="targetIndex: ${meta.targetIndex}">
+              <a-video src="#pbar-video-${meta.videoIndex}" pbar-uv-split="side: ${meta.side}" position="0 0 0" width="${(1 + (meta.targetIndex + 1) * 0.0001).toFixed(4)}" height="${meta.aspectRatio.toFixed(4)}" visible="false"></a-video>
+            </a-entity>`
+          ).join('');
+
+          sceneHolder.innerHTML = `
+            <a-scene id="pbar-a-scene" pbar-smart-verifier
+              mindar-image="imageTargetSrc: ${compiledMindUrl}; maxTrack: ${activeNewspaper ? 1 : 2}; filterMinCF: 0.0005; filterBeta: 0.1; warmupTolerance: 1; missTolerance: 5; uiLoading: no; uiScanning: no; uiError: no;"
+              color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+              <a-assets>${assetsHtml}</a-assets>
+              <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+              ${entitiesHtml}
+            </a-scene>
+          `;
+
+          document.querySelectorAll('.pbar-video-asset').forEach(v => { v.muted = true; v.play().then(() => v.pause()).catch(() => {}); });
+          const sceneEl = document.getElementById('pbar-a-scene');
+          sceneEl.addEventListener('arReady', () => {
+            arIsRunning = true;
+            startOverlay.style.display = 'none'; hudTop.style.display = 'flex'; hudBottom.style.display = 'flex'; reticleEl.style.display = 'block';
+            setTimeout(enableAutoFocus, 350);
+          });
+          sceneEl.addEventListener('arError', () => {
+            statusMsg.style.color = '#ef4444'; statusMsg.innerText = 'Kamera gagal dibuka. Pastikan izin kamera aktif.';
+            btnLaunch.disabled = false; btnLaunch.innerHTML = '<i class="ri-refresh-line"></i> COBA LAGI';
+          });
+          globalTargetMeta.forEach(meta => {
+            const el = document.getElementById('pbar-target-' + meta.targetIndex);
+            el?.addEventListener('targetLost', () => { const p = el.querySelector('a-video'); if (p?.object3D) p.object3D.visible = false; });
+          });
+        });
+      })();
+    </script>
+  <% } %>
+</body>
+</html>
