@@ -1,3 +1,4 @@
+const path = require('path');
 const imagekit = require('../config/imagekit');
 
 function getPrefixByType(fileType) {
@@ -28,7 +29,6 @@ async function uploadBufferToImageKit(buffer, filename, folder = '/photobooth/se
 
 async function mirrorUrlToImageKit(sourceUrl, filename, folder = '/photobooth/frames') {
   if (!sourceUrl || !sourceUrl.startsWith('http')) return null;
-  // Jika sudah di ImageKit kita sendiri, tidak perlu upload ulang
   if (process.env.IMAGEKIT_URL_ENDPOINT && sourceUrl.startsWith(process.env.IMAGEKIT_URL_ENDPOINT)) {
     return { url: sourceUrl, fileId: '' };
   }
@@ -44,24 +44,91 @@ async function mirrorUrlToImageKit(sourceUrl, filename, folder = '/photobooth/fr
   };
 }
 
-async function deleteFileIds(fileIds = []) {
-  const cleanIds = [...new Set(fileIds.filter(Boolean))];
-  if (cleanIds.length === 0) return;
+/**
+ * Cari fileId langsung di folder /photobooth/sessions ImageKit berdasarkan daftar nama file
+ * (pengaman jika fileId belum sempat tercatat di MongoDB)
+ */
+async function findSessionFileIdsByNames(filenames = []) {
+  const cleanNames = [
+    ...new Set(
+      filenames
+        .map((f) => path.basename(String(f || '').split('?')[0]).trim())
+        .filter(Boolean)
+    ),
+  ];
 
-  // ImageKit bulkDeleteFiles menerima maks 100 fileId per panggilan
-  for (let i = 0; i < cleanIds.length; i += 100) {
-    const chunk = cleanIds.slice(i, i + 100);
+  if (cleanNames.length === 0) return [];
+
+  const foundIds = [];
+  for (let i = 0; i < cleanNames.length; i += 20) {
+    const chunk = cleanNames.slice(i, i + 20);
+    const escapedList = chunk.map((n) => `"${n.replace(/["\\]/g, '')}"`).join(', ');
     try {
-      await imagekit.bulkDeleteFiles(chunk);
+      const files = await imagekit.listFiles({
+        path: '/photobooth/sessions',
+        searchQuery: `name IN [${escapedList}]`,
+        limit: 100,
+      });
+      if (Array.isArray(files)) {
+        files.forEach((f) => {
+          if (f && f.fileId) foundIds.push(f.fileId);
+        });
+      }
     } catch (err) {
-      // Fallback hapus satu per satu jika ada fileId yang sudah terhapus duluan
-      for (const id of chunk) {
+      // Fallback cari satu per satu jika query IN gagal
+      for (const name of chunk) {
         try {
-          await imagekit.deleteFile(id);
+          const single = await imagekit.listFiles({
+            path: '/photobooth/sessions',
+            searchQuery: `name = "${name.replace(/["\\]/g, '')}"`,
+            limit: 5,
+          });
+          if (Array.isArray(single)) {
+            single.forEach((f) => {
+              if (f && f.fileId) foundIds.push(f.fileId);
+            });
+          }
         } catch (_) {}
       }
     }
   }
+
+  return [...new Set(foundIds)];
+}
+
+async function deleteFileIds(fileIds = []) {
+  const cleanIds = [...new Set(fileIds.filter(Boolean))];
+  if (cleanIds.length === 0) return { deleted: 0, failed: [] };
+
+  let deleted = 0;
+  const failed = [];
+
+  for (let i = 0; i < cleanIds.length; i += 100) {
+    const chunk = cleanIds.slice(i, i + 100);
+    try {
+      const res = await imagekit.bulkDeleteFiles(chunk);
+      const okCount = Array.isArray(res?.successfullyDeletedFileIds)
+        ? res.successfullyDeletedFileIds.length
+        : chunk.length;
+      deleted += okCount;
+    } catch (err) {
+      // Jika ada 1 fileId yang sudah hilang duluan, bulkDelete bisa throw -> hapus satu per satu
+      for (const id of chunk) {
+        try {
+          await imagekit.deleteFile(id);
+          deleted++;
+        } catch (singleErr) {
+          const msg = String(singleErr?.message || '');
+          // Abaikan jika memang sudah tidak ada di ImageKit (404)
+          if (!msg.toLowerCase().includes('not found') && !msg.includes('404')) {
+            failed.push({ id, error: msg });
+          }
+        }
+      }
+    }
+  }
+
+  return { deleted, failed };
 }
 
 module.exports = {
@@ -69,5 +136,6 @@ module.exports = {
   getAuthParams,
   uploadBufferToImageKit,
   mirrorUrlToImageKit,
+  findSessionFileIdsByNames,
   deleteFileIds,
 };

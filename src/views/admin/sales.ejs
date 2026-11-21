@@ -211,19 +211,28 @@
   });
 
   async function deleteInvoice(orderId) {
-    if (!confirm('Yakin hapus invoice ini beserta SELURUH file foto & videonya di ImageKit.io?')) return;
+    if (!confirm('Yakin hapus invoice ini beserta SELURUH foto frame, raw, GIF, live video, dan file cetak di ImageKit.io?')) return;
+    const row = document.getElementById('row-' + orderId);
+    const btn = row ? row.querySelector('.pb-btn-soft-red') : null;
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="ri-loader-4-line"></i> Menghapus...';
+    }
     try {
       const res = await fetch('/admin/sales/' + encodeURIComponent(orderId), { method: 'DELETE' });
       const json = await res.json();
       if (json.success) {
-        const row = document.getElementById('row-' + orderId);
         if (row) row.remove();
+        alert(`Invoice berhasil dihapus! (${json.deletedFiles || 0} file media langsung dibersihkan dari ImageKit.io)`);
       } else {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ri-delete-bin-line"></i> Hapus'; }
         alert(json.message || 'Gagal menghapus invoice.');
       }
     } catch (e) {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ri-delete-bin-line"></i> Hapus'; }
       alert('Terjadi kesalahan jaringan.');
     }
+  }
   }
 </script>
 <%- include('partials/footer') %>

@@ -3,13 +3,14 @@ const utc = require('dayjs/plugin/utc');
 const timezone = require('dayjs/plugin/timezone');
 dayjs.extend(utc);
 dayjs.extend(timezone);
+const path = require('path');
 
 const Setting = require('../models/Setting');
 const Frame = require('../models/Frame');
 const Voucher = require('../models/Voucher');
 const Transaction = require('../models/Transaction');
 const MediaAsset = require('../models/MediaAsset');
-const { getAuthParams, deleteFileIds } = require('../services/mediaService');
+const { getAuthParams, findSessionFileIdsByNames, deleteFileIds } = require('../services/mediaService');
 const { importFromWordPressJson, exportToWordPressJson } = require('../services/frameMapper');
 
 const BULAN_ID = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -228,46 +229,95 @@ exports.deleteInvoice = async (req, res) => {
       $or: [{ order_id: orderId }, { parent_order_id: orderId }],
     }).lean();
 
-    const fileIds = [];
-    const filenames = [];
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Invoice tidak ditemukan.' });
+    }
+
+    const fileIdSet = new Set();
+    const filenameSet = new Set();
     const orderIds = rows.map((r) => r.order_id);
 
+    const addFilenameFromUrl = (rawUrl) => {
+      if (!rawUrl) return;
+      try {
+        const u = new URL(rawUrl);
+        const base = path.basename(u.pathname).trim();
+        if (base) filenameSet.add(base);
+      } catch (_) {
+        const base = path.basename(String(rawUrl).split('?')[0]).trim();
+        if (base) filenameSet.add(base);
+      }
+    };
+
     for (const r of rows) {
-      if (r.print_file_id) fileIds.push(r.print_file_id);
+      if (r.print_file_id) fileIdSet.add(r.print_file_id);
+      if (r.print_url) addFilenameFromUrl(r.print_url);
+
       if (Array.isArray(r.media_assets)) {
         for (const a of r.media_assets) {
-          if (a.fileId) fileIds.push(a.fileId);
-          if (a.filename) filenames.push(a.filename);
+          if (a.fileId) fileIdSet.add(a.fileId);
+          if (a.filename) filenameSet.add(path.basename(a.filename.trim()));
+          if (a.url) addFilenameFromUrl(a.url);
         }
       }
+
       if (r.all_files) {
         r.all_files.split(',').forEach((f) => {
-          const clean = f.trim();
-          if (clean) filenames.push(clean);
+          const clean = path.basename(f.trim());
+          if (clean) filenameSet.add(clean);
         });
+      }
+
+      // Cek juga parameter ?f= (base64) di media_link sebagai cadangan
+      if (r.media_link) {
+        try {
+          const fParam = new URL(r.media_link).searchParams.get('f');
+          if (fParam) {
+            Buffer.from(fParam, 'base64')
+              .toString('utf8')
+              .split(',')
+              .forEach((f) => {
+                const clean = path.basename(f.trim());
+                if (clean) filenameSet.add(clean);
+              });
+          }
+        } catch (_) {}
       }
     }
 
-    // Cari juga fileId tambahan di koleksi MediaAsset
+    const filenames = Array.from(filenameSet);
+
+    // 1. Cari fileId dari koleksi MediaAsset
     if (filenames.length > 0 || orderIds.length > 0) {
       const assets = await MediaAsset.find({
         $or: [{ filename: { $in: filenames } }, { order_id: { $in: orderIds } }],
       }).lean();
       assets.forEach((a) => {
-        if (a.fileId) fileIds.push(a.fileId);
+        if (a.fileId) fileIdSet.add(a.fileId);
+        if (a.filename) filenameSet.add(path.basename(a.filename.trim()));
       });
     }
 
-    // 1. Hapus file fisik di ImageKit.io
-    await deleteFileIds(fileIds);
+    // 2. Sapu langsung ke API ImageKit (/photobooth/sessions) jika ada file yg belum tercatat fileId-nya
+    const resolvedFromIk = await findSessionFileIdsByNames(Array.from(filenameSet));
+    resolvedFromIk.forEach((id) => fileIdSet.add(id));
 
-    // 2. Hapus catatan di MongoDB
+    // 3. Hapus seluruh file fisik di ImageKit.io
+    const deleteResult = await deleteFileIds(Array.from(fileIdSet));
+
+    // 4. Hapus catatan transaksi & MediaAsset di MongoDB
     await Promise.all([
       Transaction.deleteMany({ $or: [{ order_id: orderId }, { parent_order_id: orderId }] }),
-      MediaAsset.deleteMany({ $or: [{ filename: { $in: filenames } }, { order_id: { $in: orderIds } }] }),
+      MediaAsset.deleteMany({
+        $or: [{ filename: { $in: Array.from(filenameSet) } }, { order_id: { $in: orderIds } }],
+      }),
     ]);
 
-    return res.json({ success: true, deletedFiles: fileIds.length });
+    return res.json({
+      success: true,
+      deletedFiles: deleteResult.deleted,
+      failedCount: deleteResult.failed.length,
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
