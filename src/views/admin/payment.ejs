@@ -1,64 +1,239 @@
 <%- include('partials/header') %>
-<div style="background:#fff; padding:26px; border:2px solid #111; border-radius:14px; box-shadow:6px 6px 0 #111; max-width:760px;">
-  <h1 style="border-bottom:2px solid #111; padding-bottom:12px; margin-top:0; font-size:22px;">
-    <i class="ri-bank-card-line"></i> PENGATURAN MODE PEMBAYARAN
-  </h1>
+<div style="display:flex; flex-direction:column; gap:24px; max-width:920px;">
 
-  <% if (flashMsg) { %><div class="alert-ok"><%= flashMsg %></div><% } %>
+  <!-- ===================================================================== -->
+  <!-- BAGIAN 1: PENGATURAN MODE PEMBAYARAN                                  -->
+  <!-- ===================================================================== -->
+  <div style="background:#fff; padding:26px; border:2px solid #111; border-radius:14px; box-shadow:6px 6px 0 #111;">
+    <h1 style="border-bottom:2px solid #111; padding-bottom:12px; margin-top:0; font-size:22px;">
+      <i class="ri-bank-card-line"></i> PENGATURAN MODE PEMBAYARAN
+    </h1>
 
-  <form method="POST" action="/admin/payment/save">
-    <!-- SAKLAR MODE BERBAYAR / MODE GRATIS (SKIP PAYMENT) -->
-    <div style="margin-bottom:22px; padding:16px; border:2px solid #111; border-radius:10px; background:#f8fafc;">
-      <label for="ef_pb_free_mode" style="display:block; font-weight:800; margin-bottom:8px; font-size:15px;">
-        <i class="ri-gift-line"></i> Status Pembayaran Sesi Photobooth
-      </label>
-      <select name="ef_pb_free_mode" id="ef_pb_free_mode" style="width:100%; max-width:460px; padding:10px 12px; border:2px solid #111; border-radius:8px; font-weight:700; background:#fff;">
-        <option value="no" <%= setting.free_mode !== 'yes' ? 'selected' : '' %>>Mode Berbayar (Normal — QRIS / Midtrans + Voucher)</option>
-        <option value="yes" <%= setting.free_mode === 'yes' ? 'selected' : '' %>>Mode Gratis (Skip Payment — Semua Sesi Langsung Rp 0)</option>
-      </select>
-
-      <div id="free_mode_notice" style="margin-top:10px; padding:10px 12px; border-radius:8px; font-size:12.5px; font-weight:700; border:2px solid #15803d; background:#dcfce7; color:#166534; <%= setting.free_mode === 'yes' ? '' : 'display:none;' %>">
-        <i class="ri-checkbox-circle-fill"></i> MODE GRATIS AKTIF: Seluruh sesi foto langsung melewati halaman pembayaran (Rp 0), Midtrans/QRIS dilewati, kuota voucher tidak terpotong, dan transaksi tetap tercatat di Rekap Penjualan dengan status <code>MODE GRATIS</code>.
+    <% if (flashMsg) { %><div class="alert-ok"><%= flashMsg %></div><% } %>
+    <% if (typeof flashErr !== 'undefined' && flashErr) { %>
+      <div style="background:#fee2e2; color:#991b1b; border:2px solid #dc2626; padding:12px 14px; border-radius:10px; font-weight:700; margin-bottom:16px;">
+        <i class="ri-error-warning-fill"></i> <%= flashErr %>
       </div>
-      <p id="paid_mode_notice" style="color:#475569; font-weight:600; font-size:12.5px; margin:8px 0 0; <%= setting.free_mode === 'yes' ? 'display:none;' : '' %>">
-        Aktifkan <strong>Mode Gratis</strong> untuk event gratis/promosi agar pengunjung langsung masuk ke sesi foto tanpa scan QRIS.
-      </p>
-    </div>
+    <% } %>
 
-    <!-- PENGATURAN GATEWAY (OTOMATIS MEREDUP SAAT MODE GRATIS, NILAI TETAP TERSIMPAN) -->
-    <div id="paid_gateway_section" style="transition:opacity 0.2s ease; <%= setting.free_mode === 'yes' ? 'opacity:0.45;' : '' %>">
-      <div style="margin-bottom:20px;">
-        <label style="display:block; font-weight:800; margin-bottom:8px;">Metode Utama Gateway?</label>
-        <select name="ef_pb_use_midtrans" style="width:100%; max-width:420px; padding:10px 12px; border:2px solid #111; border-radius:8px; font-weight:600;">
-          <option value="yes" <%= setting.use_midtrans === 'yes' ? 'selected' : '' %>>Ya, Otomatis via Midtrans Snap</option>
-          <option value="no" <%= setting.use_midtrans !== 'yes' ? 'selected' : '' %>>Tidak, Manual Upload QRIS (ACC Operator)</option>
+    <form method="POST" action="/admin/payment/save">
+      <!-- SAKLAR MODE BERBAYAR / MODE GRATIS (SKIP PAYMENT) -->
+      <div style="margin-bottom:22px; padding:16px; border:2px solid #111; border-radius:10px; background:#f8fafc;">
+        <label for="ef_pb_free_mode" style="display:block; font-weight:800; margin-bottom:8px; font-size:15px;">
+          <i class="ri-gift-line"></i> Status Pembayaran Sesi Photobooth
+        </label>
+        <select name="ef_pb_free_mode" id="ef_pb_free_mode" style="width:100%; max-width:460px; padding:10px 12px; border:2px solid #111; border-radius:8px; font-weight:700; background:#fff;">
+          <option value="no" <%= setting.free_mode !== 'yes' ? 'selected' : '' %>>Mode Berbayar (Normal — QRIS / Midtrans + Voucher)</option>
+          <option value="yes" <%= setting.free_mode === 'yes' ? 'selected' : '' %>>Mode Gratis (Skip Payment — Semua Sesi Langsung Rp 0)</option>
         </select>
-        <p style="color:#dc2626; font-weight:700; font-size:12.5px; margin:6px 0 0;">
-          Pilih 'Tidak' jika Midtrans gangguan atau ingin menggunakan rekening/QRIS manual dengan konfirmasi Operator.
+
+        <div id="free_mode_notice" style="margin-top:10px; padding:10px 12px; border-radius:8px; font-size:12.5px; font-weight:700; border:2px solid #15803d; background:#dcfce7; color:#166534; <%= setting.free_mode === 'yes' ? '' : 'display:none;' %>">
+          <i class="ri-checkbox-circle-fill"></i> MODE GRATIS AKTIF: Seluruh sesi foto langsung melewati halaman pembayaran (Rp 0), Midtrans/QRIS dilewati, kuota voucher tidak terpotong, dan transaksi tetap tercatat di Rekap Penjualan dengan status <code>MODE GRATIS</code>.
+        </div>
+        <p id="paid_mode_notice" style="color:#475569; font-weight:600; font-size:12.5px; margin:8px 0 0; <%= setting.free_mode === 'yes' ? 'display:none;' : '' %>">
+          Aktifkan <strong>Mode Gratis</strong> untuk event gratis/promosi agar pengunjung langsung masuk ke sesi foto tanpa scan QRIS.
         </p>
       </div>
 
-      <div style="margin-bottom:22px;">
-        <label style="display:block; font-weight:800; margin-bottom:8px;">Gambar QRIS (Mode Manual)</label>
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
-          <input type="text" name="ef_pb_manual_qris_url" id="qris_image_url" value="<%= setting.manual_qris_url %>" style="flex:1; min-width:240px; padding:10px; border:2px solid #111; border-radius:8px;" placeholder="https://ik.imagekit.io/..." />
-          <input type="hidden" name="manual_qris_file_id" id="manual_qris_file_id" value="<%= setting.manual_qris_file_id || '' %>" />
-          <input type="file" id="qris_file_picker" accept="image/*" style="display:none;" />
-          <button type="button" id="btn_upload_qris" class="pb-btn pb-btn-dark"><i class="ri-upload-cloud-2-line"></i> Upload QRIS</button>
+      <!-- PENGATURAN GATEWAY (OTOMATIS MEREDUP SAAT MODE GRATIS, NILAI TETAP TERSIMPAN) -->
+      <div id="paid_gateway_section" style="transition:opacity 0.2s ease; <%= setting.free_mode === 'yes' ? 'opacity:0.45;' : '' %>">
+        <div style="margin-bottom:20px;">
+          <label style="display:block; font-weight:800; margin-bottom:8px;">Metode Utama Gateway?</label>
+          <select name="ef_pb_use_midtrans" style="width:100%; max-width:420px; padding:10px 12px; border:2px solid #111; border-radius:8px; font-weight:600;">
+            <option value="yes" <%= setting.use_midtrans === 'yes' ? 'selected' : '' %>>Ya, Otomatis via Midtrans Snap</option>
+            <option value="no" <%= setting.use_midtrans !== 'yes' ? 'selected' : '' %>>Tidak, Manual Upload QRIS (ACC Operator)</option>
+          </select>
+          <p style="color:#dc2626; font-weight:700; font-size:12.5px; margin:6px 0 0;">
+            Pilih 'Tidak' jika Midtrans gangguan atau ingin menggunakan rekening/QRIS manual dengan konfirmasi Operator.
+          </p>
         </div>
-        <div style="margin-top:16px;">
-          <img id="qris_preview" src="<%= setting.manual_qris_url %>" style="max-width:220px; border:3px dashed #111; padding:10px; border-radius:10px; <%= setting.manual_qris_url ? '' : 'display:none;' %>" />
+
+        <div style="margin-bottom:22px;">
+          <label style="display:block; font-weight:800; margin-bottom:8px;">Gambar QRIS (Mode Manual)</label>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <input type="text" name="ef_pb_manual_qris_url" id="qris_image_url" value="<%= setting.manual_qris_url %>" style="flex:1; min-width:240px; padding:10px; border:2px solid #111; border-radius:8px;" placeholder="https://ik.imagekit.io/..." />
+            <input type="hidden" name="manual_qris_file_id" id="manual_qris_file_id" value="<%= setting.manual_qris_file_id || '' %>" />
+            <input type="file" id="qris_file_picker" accept="image/*" style="display:none;" />
+            <button type="button" id="btn_upload_qris" class="pb-btn pb-btn-dark"><i class="ri-upload-cloud-2-line"></i> Upload QRIS</button>
+          </div>
+          <div style="margin-top:16px;">
+            <img id="qris_preview" src="<%= setting.manual_qris_url %>" style="max-width:220px; border:3px dashed #111; padding:10px; border-radius:10px; <%= setting.manual_qris_url ? '' : 'display:none;' %>" />
+          </div>
         </div>
+      </div>
+
+      <button type="submit" class="pb-btn pb-btn-green" style="color:#111; border:2px solid #111; box-shadow:3px 3px 0 #111;">
+        <i class="ri-save-line"></i> Simpan Mode Pembayaran
+      </button>
+    </form>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- BAGIAN 2: STORAGE & CADANGAN API IMAGEKIT.IO                          -->
+  <!-- ===================================================================== -->
+  <div id="storage-section" style="background:#fff; padding:26px; border:2px solid #111; border-radius:14px; box-shadow:6px 6px 0 #111;">
+    <h2 style="border-bottom:2px solid #111; padding-bottom:12px; margin-top:0; font-size:20px;">
+      <i class="ri-hard-drive-2-line"></i> STORAGE &amp; CADANGAN API IMAGEKIT.IO
+    </h2>
+
+    <div style="background:#eff6ff; border:2px solid #0284c7; border-radius:10px; padding:12px 14px; font-size:13px; color:#0c4a6e; font-weight:700; margin-bottom:18px;">
+      <i class="ri-lock-2-fill"></i> Aset <strong>Frame PNG</strong> &amp; <strong>QRIS Manual</strong> selalu terkunci permanen di <strong>Akun Utama (.env)</strong>. Akun cadangan hanya digunakan otomatis untuk <strong>Media Sesi Pelanggan</strong> (Foto, Pose HD, Live Video, GIF, Cetak) ketika akun utama error atau penuh.
+    </div>
+
+    <!-- PRIORITAS UPLOAD SESI -->
+    <form method="POST" action="/admin/storage/mode" style="background:#f8fafc; border:2px solid #111; border-radius:12px; padding:16px; margin-bottom:20px;">
+      <label style="display:block; font-weight:800; margin-bottom:8px; font-size:14.5px;">
+        <i class="ri-route-line"></i> Mode Prioritas Upload Media Sesi
+      </label>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <select name="active_session_account" style="flex:1; min-width:260px; padding:10px 12px; border:2px solid #111; border-radius:8px; font-weight:700; background:#fff;">
+          <option value="auto" <%= (!setting.imagekit_active_session_account || setting.imagekit_active_session_account === 'auto' || setting.imagekit_active_session_account === 'primary') ? 'selected' : '' %>>
+            Otomatis (Utama .env Dulu &rarr; Failover ke Cadangan Aktif)
+          </option>
+          <% backups.filter(b => b.active).forEach(function(b) { %>
+            <option value="<%= b.id %>" <%= setting.imagekit_active_session_account === b.id ? 'selected' : '' %>>
+              Paksa Pakai Duluan: <%= b.label %> (Prioritas #<%= b.priority %>)
+            </option>
+          <% }) %>
+        </select>
+        <button type="submit" class="pb-btn pb-btn-green" style="color:#111; border:2px solid #111; box-shadow:3px 3px 0 #111;">
+          <i class="ri-save-line"></i> Terapkan Prioritas
+        </button>
+      </div>
+
+      <div style="margin-top:12px; font-size:12.5px; color:#334155; font-weight:700;">
+        Urutan Failover Aktif Sekarang:
+        <% if (activePoolOrder.length === 0) { %>
+          <span style="color:#dc2626;">Belum ada akun aktif!</span>
+        <% } else { %>
+          <% activePoolOrder.forEach(function(acc, idx) { %>
+            <span style="display:inline-block; background:<%= idx === 0 ? '#dcfce7' : '#e2e8f0' %>; border:1.5px solid #111; padding:2px 8px; border-radius:99px; margin:2px 4px 2px 0;">
+              <%= idx + 1 %>. <%= acc.label %>
+            </span>
+          <% }) %>
+        <% } %>
+      </div>
+    </form>
+
+    <!-- KARTU AKUN PRIMARY (.env) -->
+    <div style="border:2.5px solid #111; border-radius:12px; padding:16px; background:#f0fdf4; margin-bottom:14px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <div>
+          <span style="background:#111; color:#4ade80; font-size:11px; font-weight:900; padding:3px 9px; border-radius:99px;">PRIMARY (.ENV) &bull; LOCKED FOR FRAMES</span>
+          <h3 style="margin:8px 0 4px; font-size:16px;"><%= primaryInfo.label %></h3>
+          <div style="font-size:12.5px; color:#334155; line-height:1.6;">
+            <strong>Endpoint:</strong> <code><%= primaryInfo.url_endpoint %></code><br />
+            <strong>Public Key:</strong> <code><%= primaryInfo.public_key %></code><br />
+            <strong>Private Key:</strong> <code><%= primaryInfo.private_key_masked %></code> &bull;
+            <strong>Media Sesi Tercatat:</strong> <%= primaryInfo.fileCount %> file
+          </div>
+        </div>
+        <button type="button" class="pb-btn pb-btn-dark btn-test-acc" data-account-id="primary">
+          <i class="ri-wifi-line"></i> Tes Koneksi
+        </button>
       </div>
     </div>
 
-    <button type="submit" class="pb-btn pb-btn-green" style="color:#111; border:2px solid #111; box-shadow:3px 3px 0 #111;">
-      <i class="ri-save-line"></i> Simpan Mode Pembayaran
-    </button>
-  </form>
+    <!-- DAFTAR AKUN CADANGAN -->
+    <% if (backups.length === 0) { %>
+      <p style="color:#64748b; font-weight:700; text-align:center; padding:14px 0; margin:0 0 18px;">
+        Belum ada akun ImageKit cadangan. Tambahkan di bawah agar otomatis failover saat kuota utama penuh.
+      </p>
+    <% } else { %>
+      <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:22px;">
+        <% backups.forEach(function(b) { %>
+          <div style="border:2px solid #111; border-radius:12px; padding:15px; background:<%= b.active ? '#ffffff' : '#f1f5f9' %>; opacity:<%= b.active ? '1' : '0.72' %>;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+              <div style="flex:1; min-width:250px;">
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                  <span style="background:<%= b.active ? '#38bdf8' : '#94a3b8' %>; color:#111; border:1.5px solid #111; font-size:11px; font-weight:900; padding:2px 8px; border-radius:99px;">
+                    <%= b.active ? 'AKTIF' : 'NONAKTIF' %>
+                  </span>
+                  <span style="background:#fef08a; border:1.5px solid #111; font-size:11px; font-weight:900; padding:2px 8px; border-radius:99px;">
+                    PRIORITAS #<%= b.priority %>
+                  </span>
+                  <strong style="font-size:15.5px;"><%= b.label %></strong>
+                </div>
+                <div style="font-size:12.5px; color:#334155; margin-top:8px; line-height:1.6;">
+                  <strong>Endpoint:</strong> <code><%= b.url_endpoint %></code><br />
+                  <strong>Public Key:</strong> <code><%= b.public_key %></code><br />
+                  <strong>Private Key:</strong> <code><%= b.private_key_masked %></code> &bull;
+                  <strong>Media Sesi Tercatat:</strong> <%= b.fileCount %> file
+                </div>
+              </div>
+
+              <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+                <form method="POST" action="/admin/storage/priority/<%= b.id %>" style="display:inline-flex; gap:5px; align-items:center;">
+                  <input type="number" name="priority" value="<%= b.priority %>" min="1" max="99" style="width:58px; padding:6px 8px; border:2px solid #111; border-radius:8px; font-weight:800; text-align:center;" title="Urutan Prioritas" />
+                  <button type="submit" class="pb-btn" style="background:#fef08a; color:#111; border:2px solid #111; padding:6px 10px;">Set #</button>
+                </form>
+
+                <button type="button" class="pb-btn pb-btn-dark btn-test-acc" data-account-id="<%= b.id %>" style="padding:7px 11px;">
+                  <i class="ri-wifi-line"></i> Tes
+                </button>
+
+                <form method="POST" action="/admin/storage/toggle/<%= b.id %>" style="display:inline;">
+                  <button type="submit" class="pb-btn" style="background:<%= b.active ? '#fde68a' : '#86efac' %>; color:#111; border:2px solid #111; padding:7px 11px;">
+                    <%= b.active ? 'Nonaktifkan' : 'Aktifkan' %>
+                  </button>
+                </form>
+
+                <button type="button" class="pb-btn btn-del-acc" data-id="<%= b.id %>" data-label="<%= b.label %>" style="background:#ef4444; color:#fff; border:2px solid #111; padding:7px 11px;">
+                  <i class="ri-delete-bin-line"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+
+    <!-- FORM TAMBAH AKUN CADANGAN BARU -->
+    <div style="border-top:2px dashed #cbd5e1; padding-top:18px;">
+      <h3 style="margin:0 0 14px; font-size:16px;">
+        <i class="ri-add-circle-line"></i> Tambah API ImageKit.io Cadangan
+      </h3>
+
+      <form method="POST" action="/admin/storage/add" id="form-add-ik">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:14px; margin-bottom:16px;">
+          <div>
+            <label style="display:block; font-weight:800; margin-bottom:6px; font-size:13px;">Label Akun Cadangan</label>
+            <input type="text" name="label" required placeholder="Contoh: Cadangan Event 1" style="width:100%; padding:10px; border:2px solid #111; border-radius:8px; font-weight:600;" />
+          </div>
+          <div>
+            <label style="display:block; font-weight:800; margin-bottom:6px; font-size:13px;">Urutan Prioritas (1 = pertama dicoba)</label>
+            <input type="number" name="priority" value="<%= backups.length + 1 %>" min="1" max="99" style="width:100%; padding:10px; border:2px solid #111; border-radius:8px; font-weight:700;" />
+          </div>
+          <div style="grid-column:1 / -1;">
+            <label style="display:block; font-weight:800; margin-bottom:6px; font-size:13px;">URL Endpoint ImageKit</label>
+            <input type="url" name="url_endpoint" id="new_url_endpoint" required placeholder="https://ik.imagekit.io/id_cadangan_kamu" style="width:100%; padding:10px; border:2px solid #111; border-radius:8px; font-weight:600;" />
+          </div>
+          <div>
+            <label style="display:block; font-weight:800; margin-bottom:6px; font-size:13px;">Public Key</label>
+            <input type="text" name="public_key" id="new_public_key" required placeholder="public_xxxxxxxxxxxx" style="width:100%; padding:10px; border:2px solid #111; border-radius:8px; font-weight:600;" />
+          </div>
+          <div>
+            <label style="display:block; font-weight:800; margin-bottom:6px; font-size:13px;">Private Key</label>
+            <input type="password" name="private_key" id="new_private_key" required placeholder="private_xxxxxxxxxxxx" style="width:100%; padding:10px; border:2px solid #111; border-radius:8px; font-weight:600;" />
+          </div>
+        </div>
+
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button type="button" id="btn-test-new" class="pb-btn" style="background:#fef08a; color:#111; border:2px solid #111; box-shadow:3px 3px 0 #111;">
+            <i class="ri-wifi-line"></i> Tes Koneksi Dulu
+          </button>
+          <button type="submit" class="pb-btn pb-btn-green" style="color:#111; border:2px solid #111; box-shadow:3px 3px 0 #111;">
+            <i class="ri-save-line"></i> Verifikasi &amp; Simpan Cadangan
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
 </div>
 
 <script>
+  // --- 1. SAKLAR MODE GRATIS / BERBAYAR ---
   const freeModeSelect = document.getElementById('ef_pb_free_mode');
   const freeModeNotice = document.getElementById('free_mode_notice');
   const paidModeNotice = document.getElementById('paid_mode_notice');
@@ -73,6 +248,7 @@
   freeModeSelect.addEventListener('change', syncFreeModeUI);
   syncFreeModeUI();
 
+  // --- 2. UPLOAD QRIS MANUAL (SELALU KE AKUN PRIMARY .ENV) ---
   const picker = document.getElementById('qris_file_picker');
   const btn = document.getElementById('btn_upload_qris');
   btn.addEventListener('click', () => { picker.value = ''; picker.click(); });
@@ -114,6 +290,71 @@
       btn.innerHTML = orig;
       btn.disabled = false;
     }
+  });
+
+  // --- 3. TES KONEKSI & HAPUS AKUN IMAGEKIT CADANGAN ---
+  document.querySelectorAll('.btn-test-acc').forEach((testBtn) => {
+    testBtn.addEventListener('click', async () => {
+      const accountId = testBtn.dataset.accountId;
+      const orig = testBtn.innerHTML;
+      testBtn.innerHTML = 'Menguji...';
+      testBtn.disabled = true;
+      try {
+        const res = await fetch('/admin/storage/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ account_id: accountId }),
+        });
+        const json = await res.json();
+        alert(json.success ? 'BERHASIL: ' + json.message : 'GAGAL: ' + json.message);
+      } catch (e) {
+        alert('Error: ' + e.message);
+      } finally {
+        testBtn.innerHTML = orig;
+        testBtn.disabled = false;
+      }
+    });
+  });
+
+  document.getElementById('btn-test-new').addEventListener('click', async function () {
+    const testNewBtn = this;
+    const orig = testNewBtn.innerHTML;
+    testNewBtn.innerHTML = 'Menguji...';
+    testNewBtn.disabled = true;
+    try {
+      const res = await fetch('/admin/storage/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          public_key: document.getElementById('new_public_key').value.trim(),
+          private_key: document.getElementById('new_private_key').value.trim(),
+          url_endpoint: document.getElementById('new_url_endpoint').value.trim(),
+        }),
+      });
+      const json = await res.json();
+      alert(json.success ? 'BERHASIL: ' + json.message : 'GAGAL: ' + json.message);
+    } catch (e) {
+      alert('Error: ' + e.message);
+    } finally {
+      testNewBtn.innerHTML = orig;
+      testNewBtn.disabled = false;
+    }
+  });
+
+  document.querySelectorAll('.btn-del-acc').forEach((delBtn) => {
+    delBtn.addEventListener('click', async () => {
+      const id = delBtn.dataset.id;
+      const label = delBtn.dataset.label;
+      if (!confirm('Hapus akun cadangan "' + label + '" dari daftar? (File yang sudah terunggah di akun tersebut tidak dihapus)')) return;
+      try {
+        const res = await fetch('/admin/storage/' + encodeURIComponent(id), { method: 'DELETE' });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message || 'Gagal menghapus');
+        window.location.href = '/admin/payment?msg=' + encodeURIComponent('Akun cadangan "' + label + '" dihapus.') + '#storage-section';
+      } catch (e) {
+        alert('Gagal menghapus: ' + e.message);
+      }
+    });
   });
 </script>
 <%- include('partials/footer') %>

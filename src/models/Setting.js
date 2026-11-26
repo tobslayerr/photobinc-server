@@ -1,5 +1,18 @@
 const mongoose = require('mongoose');
 
+const imagekitBackupSchema = new mongoose.Schema(
+  {
+    id: { type: String, required: true, trim: true }, // contoh: 'ik_backup_1732610000'
+    label: { type: String, default: 'Cadangan ImageKit', trim: true },
+    public_key: { type: String, required: true, trim: true },
+    private_key: { type: String, required: true, trim: true },
+    url_endpoint: { type: String, required: true, trim: true },
+    active: { type: Boolean, default: true },
+    priority: { type: Number, default: 1 },
+  },
+  { _id: false }
+);
+
 const settingSchema = new mongoose.Schema(
   {
     key: { type: String, default: 'global', unique: true },
@@ -19,6 +32,10 @@ const settingSchema = new mongoose.Schema(
     global_voucher_expiry_iso: { type: String, default: '2026-12-31T23:59' },
     global_voucher_expiry_ts: { type: Number, default: 1798736340 },
     global_voucher_expiry_label: { type: String, default: '31 Des 2026, 23:59 WIB' },
+
+    // Multi-Account ImageKit Failover (khusus media sesi; aset frame & QRIS tetap di akun primary .env)
+    imagekit_active_session_account: { type: String, default: 'auto', trim: true },
+    imagekit_backups: { type: [imagekitBackupSchema], default: [] },
   },
   { timestamps: true }
 );

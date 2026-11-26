@@ -5,6 +5,7 @@ const mediaAssetItemSchema = new mongoose.Schema(
     filename: { type: String, default: '' },
     url: { type: String, default: '' },
     fileId: { type: String, default: '' },
+    storage_account_id: { type: String, default: 'primary' },
     type: { type: String, default: 'photo' },
   },
   { _id: false }
@@ -28,6 +29,7 @@ const transactionSchema = new mongoose.Schema(
     all_files: { type: String, default: '' },
     print_url: { type: String, default: '' },
     print_file_id: { type: String, default: '' },
+    print_storage_account_id: { type: String, default: 'primary' },
     print_status: { type: Number, default: 0 }, // 0 = antre, 1 = sudah dicetak
     created_at_wib: { type: String, required: true }, // Format YYYY-MM-DD HH:mm:ss (WIB)
     media_assets: { type: [mediaAssetItemSchema], default: [] },

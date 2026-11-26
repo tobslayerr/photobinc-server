@@ -5,17 +5,23 @@ const timezone = require('dayjs/plugin/timezone');
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
+const imagekit = require('../config/imagekit');
 const Setting = require('../models/Setting');
 const Frame = require('../models/Frame');
 const Voucher = require('../models/Voucher');
 const Transaction = require('../models/Transaction');
 const MediaAsset = require('../models/MediaAsset');
-const { getPrefixByType, getAuthParams, uploadBufferToImageKit } = require('../services/mediaService');
+const {
+  getPrefixByType,
+  getSessionAuthPool,
+  uploadBufferToImageKit,
+} = require('../services/mediaService');
 const { createSnapTransaction, checkMidtransStatus } = require('../services/midtransService');
 
 const BULAN_ID = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 const MAX_STRIP_SLOTS = (Frame.LIMITS && Frame.LIMITS.strip) || 18;
 const MAX_NEWS_SLOTS = (Frame.LIMITS && Frame.LIMITS.news) || 4;
+const VALID_MEDIA_TYPES = new Set(['photo', 'video', 'gif', 'raw', 'print']);
 
 function toNum(val, fallback = 0) {
   const n = Number(val);
@@ -29,6 +35,19 @@ function normalizeSlot(slot) {
     w: toNum(slot?.w, 0),
     h: toNum(slot?.h, 0),
   };
+}
+
+function inferMediaType(explicitType, filename) {
+  const cleanType = String(explicitType || '').toLowerCase().trim();
+  const lowerName = String(filename || '').toLowerCase();
+
+  // Pastikan file pose HD tidak pernah tersimpan sebagai 'photo' jika pola namanya jelas 'raw'
+  if (/(^|[\/_\-])(final_raw_|raw[\-_])/.test(lowerName)) return 'raw';
+  if (VALID_MEDIA_TYPES.has(cleanType)) return cleanType;
+  if (lowerName.endsWith('.mp4') || /(^|[\/_\-])(final_video_|live[\-_])/.test(lowerName)) return 'video';
+  if (lowerName.endsWith('.gif') || /(^|[\/_\-])(final_gif_|slide[\-_])/.test(lowerName)) return 'gif';
+  if (/(^|[\/_\-])(final_print_|print[\-_])/.test(lowerName)) return 'print';
+  return 'photo';
 }
 
 function getSafeFreePaymentMethod() {
@@ -59,6 +78,9 @@ exports.getConfig = async (req, res) => {
     const setting = await Setting.getGlobal();
     const isFreeMode = setting.free_mode === 'yes';
 
+    const sessionPool = await imagekit.getSessionAccountPool(setting);
+    const activeStorage = sessionPool[0] || imagekit.getPrimaryAccount();
+
     return res.json({
       success: true,
       data: {
@@ -80,12 +102,15 @@ exports.getConfig = async (req, res) => {
           expiry_ts: setting.global_voucher_expiry_ts,
           expiry_label: setting.global_voucher_expiry_label,
         },
-        // Penanda otomatis untuk React Native api.ts agar memakai ImageKit Direct Upload
+        // Penanda otomatis untuk React Native api.ts agar memakai ImageKit Direct Upload (+ failover)
         storage: {
           provider: 'imagekit',
-          public_key: process.env.IMAGEKIT_PUBLIC_KEY || '',
-          url_endpoint: process.env.IMAGEKIT_URL_ENDPOINT || '',
+          active_account_id: activeStorage.id || 'primary',
+          public_key: activeStorage.publicKey || process.env.IMAGEKIT_PUBLIC_KEY || '',
+          url_endpoint: activeStorage.urlEndpoint || process.env.IMAGEKIT_URL_ENDPOINT || '',
           folder: '/photobooth/sessions',
+          failover_enabled: sessionPool.length > 1,
+          pool_count: sessionPool.length,
         },
       },
     });
@@ -473,16 +498,32 @@ exports.checkPayment = async (req, res) => {
   }
 };
 
-// 6A. GET /wp-json/photobooth/v1/media/imagekit-auth (Signature Direct Upload untuk React Native)
+// 6A. GET /wp-json/photobooth/v1/media/imagekit-auth (Pool Signature Multi-Account Direct Upload)
 exports.getImageKitAuth = async (req, res) => {
   try {
-    const auth = getAuthParams();
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    const accounts = await getSessionAuthPool();
+    if (!accounts.length) {
+      return res.status(500).json({
+        success: false,
+        message: 'Tidak ada akun ImageKit aktif yang terkonfigurasi.',
+      });
+    }
+
+    // Field top-level diisi akun prioritas #1 agar tetap kompatibel dengan APK lama sebelum rebuild
+    const first = accounts[0];
     return res.json({
       success: true,
       data: {
-        ...auth,
-        publicKey: process.env.IMAGEKIT_PUBLIC_KEY || '',
-        folder: '/photobooth/sessions',
+        accountId: first.id,
+        label: first.label,
+        token: first.token,
+        expire: first.expire,
+        signature: first.signature,
+        publicKey: first.publicKey,
+        urlEndpoint: first.urlEndpoint,
+        folder: first.folder,
+        accounts, // Daftar lengkap Primary + Cadangan aktif untuk auto-failover di tablet
       },
     });
   } catch (err) {
@@ -490,30 +531,52 @@ exports.getImageKitAuth = async (req, res) => {
   }
 };
 
-// 6B. POST /wp-json/photobooth/v1/media/register (Catat URL + fileId hasil Direct Upload ke MongoDB)
+// 6B. POST /wp-json/photobooth/v1/media/register (Catat URL + fileId + storage_account_id ke MongoDB)
 exports.registerUploadedMedia = async (req, res) => {
   try {
-    const { filename, url, fileId, type } = req.body;
+    const { filename, url, fileId, type, storage_account_id } = req.body;
     if (!filename || !url) {
       return res.status(400).json({ success: false, message: 'filename dan url wajib diisi.' });
     }
 
+    // Jika APK lama tidak mengirim storage_account_id, deteksi otomatis dari URL endpoint ImageKit
+    let resolvedAccountId = String(storage_account_id || '').trim();
+    if (!resolvedAccountId) {
+      const matched = await imagekit.getAccountByUrl(url);
+      resolvedAccountId = matched ? matched.id : 'primary';
+    }
+
+    const resolvedType = inferMediaType(type, filename);
+
     const asset = await MediaAsset.findOneAndUpdate(
       { filename },
-      { $set: { filename, url, fileId: fileId || '', type: type || 'photo' } },
+      {
+        $set: {
+          filename,
+          url,
+          fileId: fileId || '',
+          storage_account_id: resolvedAccountId,
+          type: resolvedType,
+        },
+      },
       { upsert: true, new: true }
     );
 
     return res.json({
       success: true,
-      data: { filename: asset.filename, url: asset.url, fileId: asset.fileId },
+      data: {
+        filename: asset.filename,
+        url: asset.url,
+        fileId: asset.fileId,
+        storage_account_id: asset.storage_account_id,
+      },
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// 6C. POST /wp-json/photobooth/v1/media/upload (Fallback Multipart untuk file < 4.5 MB)
+// 6C. POST /wp-json/photobooth/v1/media/upload (Fallback Multipart + Auto-Failover Multi-ImageKit)
 exports.uploadMediaFallback = async (req, res) => {
   try {
     if (!req.file) {
@@ -534,7 +597,8 @@ exports.uploadMediaFallback = async (req, res) => {
           filename: uploaded.filename,
           url: uploaded.url,
           fileId: uploaded.fileId,
-          type: ['photo', 'video', 'gif', 'raw', 'print'].includes(fileType) ? fileType : 'photo',
+          storage_account_id: uploaded.storage_account_id || 'primary',
+          type: inferMediaType(fileType, uploaded.filename),
         },
       },
       { upsert: true }
@@ -542,7 +606,11 @@ exports.uploadMediaFallback = async (req, res) => {
 
     return res.json({
       success: true,
-      data: { url: uploaded.url, filename: uploaded.filename },
+      data: {
+        url: uploaded.url,
+        filename: uploaded.filename,
+        storage_account_id: uploaded.storage_account_id || 'primary',
+      },
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -568,7 +636,7 @@ exports.finalizeSession = async (req, res) => {
       ? req.body.client_sql_datetime
       : formatWibSql(nowUnix);
 
-    // Cari seluruh URL & fileId ImageKit berdasarkan filename yang sudah diregister
+    // Cari seluruh URL, fileId, dan storage_account_id ImageKit berdasarkan filename yang sudah diregister
     const allLookupNames = printFilename ? [...filesArray, printFilename] : [...filesArray];
     const assetDocs = await MediaAsset.find({ filename: { $in: allLookupNames } }).lean();
     const assetMap = new Map(assetDocs.map((a) => [a.filename, a]));
@@ -579,13 +647,15 @@ exports.finalizeSession = async (req, res) => {
         filename: fname,
         url: found ? found.url : '',
         fileId: found ? found.fileId : '',
-        type: found ? found.type : 'photo',
+        storage_account_id: found ? (found.storage_account_id || 'primary') : 'primary',
+        type: found ? inferMediaType(found.type, fname) : inferMediaType('', fname),
       };
     });
 
     const printAsset = printFilename ? assetMap.get(printFilename) : null;
     const printUrl = printAsset ? printAsset.url : '';
     const printFileId = printAsset ? printAsset.fileId : '';
+    const printStorageAccountId = printAsset ? (printAsset.storage_account_id || 'primary') : 'primary';
 
     // Tandai order_id pada koleksi MediaAsset
     await MediaAsset.updateMany({ filename: { $in: allLookupNames } }, { $set: { order_id: orderId } });
@@ -605,6 +675,7 @@ exports.finalizeSession = async (req, res) => {
       existingOrder.all_files = allFilesStr;
       existingOrder.print_url = printUrl;
       existingOrder.print_file_id = printFileId;
+      existingOrder.print_storage_account_id = printStorageAccountId;
       existingOrder.print_status = 0;
       existingOrder.media_assets = mediaAssets;
       await existingOrder.save();
@@ -628,6 +699,7 @@ exports.finalizeSession = async (req, res) => {
         all_files: allFilesStr,
         print_url: printUrl,
         print_file_id: printFileId,
+        print_storage_account_id: printStorageAccountId,
         print_status: 0,
         created_at_wib: clientSqlDatetime,
         media_assets: mediaAssets,

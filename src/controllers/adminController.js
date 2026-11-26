@@ -5,12 +5,18 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 const path = require('path');
 
+const imagekit = require('../config/imagekit');
 const Setting = require('../models/Setting');
 const Frame = require('../models/Frame');
 const Voucher = require('../models/Voucher');
 const Transaction = require('../models/Transaction');
 const MediaAsset = require('../models/MediaAsset');
-const { getAuthParams, findSessionFileIdsByNames, deleteFileIds } = require('../services/mediaService');
+const {
+  getAuthParams,
+  findSessionFileIdsByNames,
+  deleteFileIds,
+  testImageKitAccount,
+} = require('../services/mediaService');
 const { importFromWordPressJson, exportToWordPressJson } = require('../services/frameMapper');
 
 const BULAN_ID = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -27,6 +33,13 @@ function toFloat(val, fallback = 0) {
   const normalized = String(val).trim().replace(',', '.');
   const n = parseFloat(normalized);
   return Number.isFinite(n) ? Math.round(n * 100) / 100 : fallback;
+}
+
+function maskSecret(str = '') {
+  const clean = String(str || '').trim();
+  if (!clean) return '(belum diisi)';
+  if (clean.length <= 10) return '••••••••';
+  return `${clean.slice(0, 8)}••••••${clean.slice(-4)}`;
 }
 
 function normalizeBasePackage(pkgName = '') {
@@ -147,10 +160,8 @@ exports.getSalesPage = async (req, res) => {
       }
     }
 
-    // Urutkan terbaru di atas
     const groupedList = Array.from(groupedMap.values()).reverse();
 
-    // Statistik visual desain frame terfavorit (all-time lunas)
     const favMap = new Map();
     for (const row of allLunasFrames) {
       const mapped = resolveMappedFrame(row.frame_info, row.package_name, frameMap);
@@ -242,9 +253,19 @@ exports.deleteInvoice = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Invoice tidak ditemukan.' });
     }
 
-    const fileIdSet = new Set();
+    const fileItemsToDelete = [];
     const filenameSet = new Set();
     const orderIds = rows.map((r) => r.order_id);
+
+    const pushDeleteCandidate = (fileId, storageAccountId = '', url = '') => {
+      const cleanId = String(fileId || '').trim();
+      if (!cleanId) return;
+      fileItemsToDelete.push({
+        fileId: cleanId,
+        storage_account_id: String(storageAccountId || '').trim(),
+        url: String(url || '').trim(),
+      });
+    };
 
     const addFilenameFromUrl = (rawUrl) => {
       if (!rawUrl) return;
@@ -259,12 +280,14 @@ exports.deleteInvoice = async (req, res) => {
     };
 
     for (const r of rows) {
-      if (r.print_file_id) fileIdSet.add(r.print_file_id);
+      if (r.print_file_id) {
+        pushDeleteCandidate(r.print_file_id, r.print_storage_account_id, r.print_url);
+      }
       if (r.print_url) addFilenameFromUrl(r.print_url);
 
       if (Array.isArray(r.media_assets)) {
         for (const a of r.media_assets) {
-          if (a.fileId) fileIdSet.add(a.fileId);
+          if (a.fileId) pushDeleteCandidate(a.fileId, a.storage_account_id, a.url);
           if (a.filename) filenameSet.add(path.basename(a.filename.trim()));
           if (a.url) addFilenameFromUrl(a.url);
         }
@@ -277,7 +300,6 @@ exports.deleteInvoice = async (req, res) => {
         });
       }
 
-      // Cek juga parameter ?f= (base64) di media_link sebagai cadangan
       if (r.media_link) {
         try {
           const fParam = new URL(r.media_link).searchParams.get('f');
@@ -296,23 +318,27 @@ exports.deleteInvoice = async (req, res) => {
 
     const filenames = Array.from(filenameSet);
 
-    // 1. Cari fileId dari koleksi MediaAsset
+    // 1. Cari fileId + storage_account_id dari koleksi MediaAsset
     if (filenames.length > 0 || orderIds.length > 0) {
       const assets = await MediaAsset.find({
         $or: [{ filename: { $in: filenames } }, { order_id: { $in: orderIds } }],
       }).lean();
       assets.forEach((a) => {
-        if (a.fileId) fileIdSet.add(a.fileId);
+        if (a.fileId) pushDeleteCandidate(a.fileId, a.storage_account_id, a.url);
         if (a.filename) filenameSet.add(path.basename(a.filename.trim()));
       });
     }
 
-    // 2. Sapu langsung ke API ImageKit (/photobooth/sessions) jika ada file yg belum tercatat fileId-nya
-    const resolvedFromIk = await findSessionFileIdsByNames(Array.from(filenameSet));
-    resolvedFromIk.forEach((id) => fileIdSet.add(id));
+    // 2. Sapu langsung ke seluruh akun ImageKit (Primary + Cadangan) jika ada file yg belum tercatat fileId-nya
+    const setting = await Setting.getGlobal();
+    const resolvedFromIk = await findSessionFileIdsByNames(Array.from(filenameSet), setting);
+    resolvedFromIk.forEach((item) => {
+      if (typeof item === 'string') pushDeleteCandidate(item, 'primary', '');
+      else if (item && item.fileId) pushDeleteCandidate(item.fileId, item.storage_account_id, '');
+    });
 
-    // 3. Hapus seluruh file fisik di ImageKit.io
-    const deleteResult = await deleteFileIds(Array.from(fileIdSet));
+    // 3. Hapus seluruh file fisik di akun ImageKit masing-masing pemiliknya
+    const deleteResult = await deleteFileIds(fileItemsToDelete, setting);
 
     // 4. Hapus catatan transaksi & MediaAsset di MongoDB
     await Promise.all([
@@ -374,7 +400,6 @@ exports.getFramesPage = async (req, res) => {
       });
     }
 
-    // Urutkan tampilan admin persis sesuai urutan (order) yang tampil di aplikasi
     stripFrames.sort((a, b) => a.order - b.order || a.original_id - b.original_id);
 
     const newsFrames = [];
@@ -412,7 +437,6 @@ exports.getFramesPage = async (req, res) => {
       });
     }
 
-    // Urutkan Newspaper persis sesuai urutan (order) yang tampil di aplikasi
     newsFrames.sort((a, b) => a.order - b.order || a.original_id - b.original_id);
 
     return res.render('admin/frames', {
@@ -521,7 +545,6 @@ exports.saveFramesAndSettings = async (req, res) => {
   }
 };
 
-// Endpoint opsional untuk AJAX Quick-Sort Drag & Drop jika ingin simpan urutan tanpa reload
 exports.reorderFrames = async (req, res) => {
   try {
     const type = String(req.body.type || '').trim();
@@ -571,11 +594,50 @@ exports.importFramesJson = async (req, res) => {
 exports.getPaymentPage = async (req, res) => {
   try {
     const setting = await Setting.getGlobal();
+    const primary = imagekit.getPrimaryAccount();
+
+    const backups = (Array.isArray(setting.imagekit_backups) ? setting.imagekit_backups : [])
+      .map((b) => ({
+        id: b.id,
+        label: b.label || b.id,
+        public_key: b.public_key || '',
+        private_key_masked: maskSecret(b.private_key),
+        url_endpoint: b.url_endpoint || '',
+        active: b.active !== false,
+        priority: toInt(b.priority, 1),
+      }))
+      .sort((a, b) => a.priority - b.priority);
+
+    const counts = await MediaAsset.aggregate([
+      { $group: { _id: { $ifNull: ['$storage_account_id', 'primary'] }, total: { $sum: 1 } } },
+    ]);
+    const fileCountMap = {};
+    counts.forEach((c) => {
+      fileCountMap[c._id || 'primary'] = c.total;
+    });
+
+    const activePool = await imagekit.getSessionAccountPool(setting);
+
     return res.render('admin/payment', {
-      pageTitle: 'Setting Pembayaran',
+      pageTitle: 'Setting Pembayaran & Storage',
       activeMenu: 'payment',
       setting,
+      primaryInfo: {
+        id: primary.id,
+        label: primary.label,
+        public_key: primary.publicKey || '(belum diisi di .env)',
+        private_key_masked: maskSecret(primary.privateKey),
+        url_endpoint: primary.urlEndpoint || '(belum diisi di .env)',
+        active: primary.active,
+        fileCount: fileCountMap.primary || 0,
+      },
+      backups: backups.map((b) => ({
+        ...b,
+        fileCount: fileCountMap[b.id] || 0,
+      })),
+      activePoolOrder: activePool.map((a) => ({ id: a.id, label: a.label, isPrimary: a.isPrimary })),
       flashMsg: req.query.msg || '',
+      flashErr: req.query.err || '',
     });
   } catch (err) {
     return res.status(500).send(`Error: ${err.message}`);
@@ -603,8 +665,209 @@ exports.savePaymentSettings = async (req, res) => {
   }
 };
 
+exports.getStoragePage = (req, res) => {
+  return res.redirect('/admin/payment#storage-section');
+};
+
+exports.saveStorageActiveMode = async (req, res) => {
+  try {
+    const selected = String(req.body.active_session_account || 'auto').trim();
+    const setting = await Setting.getGlobal();
+
+    if (selected === 'auto' || selected === 'primary') {
+      setting.imagekit_active_session_account = selected;
+    } else {
+      const exists = (setting.imagekit_backups || []).find(
+        (b) => b.id === selected && b.active !== false
+      );
+      if (!exists) {
+        return res.redirect(
+          '/admin/payment?err=' +
+            encodeURIComponent('Akun cadangan yang dipilih tidak ditemukan atau sedang nonaktif.') +
+            '#storage-section'
+        );
+      }
+      setting.imagekit_active_session_account = selected;
+    }
+
+    await setting.save();
+    return res.redirect(
+      '/admin/payment?msg=' +
+        encodeURIComponent('Prioritas akun upload sesi berhasil diperbarui! (Aset Frame tetap terkunci di Utama)') +
+        '#storage-section'
+    );
+  } catch (err) {
+    return res.redirect('/admin/payment?err=' + encodeURIComponent(err.message) + '#storage-section');
+  }
+};
+
+exports.addImageKitBackup = async (req, res) => {
+  try {
+    const label = String(req.body.label || '').trim() || 'Cadangan ImageKit';
+    const publicKey = String(req.body.public_key || '').trim();
+    const privateKey = String(req.body.private_key || '').trim();
+    const urlEndpoint = imagekit.normalizeEndpoint(req.body.url_endpoint || '');
+    const priority = Math.max(1, toInt(req.body.priority, 1));
+
+    if (!publicKey || !privateKey || !urlEndpoint) {
+      return res.redirect(
+        '/admin/payment?err=' +
+          encodeURIComponent('Public Key, Private Key, dan URL Endpoint wajib diisi lengkap.') +
+          '#storage-section'
+      );
+    }
+    if (!urlEndpoint.startsWith('https://')) {
+      return res.redirect(
+        '/admin/payment?err=' +
+          encodeURIComponent('URL Endpoint harus diawali https:// (contoh: https://ik.imagekit.io/namakamu).') +
+          '#storage-section'
+      );
+    }
+
+    // Validasi koneksi dulu sebelum menyimpan agar tidak memasukkan key salah
+    await testImageKitAccount({ publicKey, privateKey, urlEndpoint });
+
+    const setting = await Setting.getGlobal();
+    const existing = Array.isArray(setting.imagekit_backups) ? setting.imagekit_backups : [];
+
+    const primaryEndpoint = imagekit.getPrimaryAccount().urlEndpoint;
+    if (
+      urlEndpoint === primaryEndpoint ||
+      existing.some((b) => imagekit.normalizeEndpoint(b.url_endpoint) === urlEndpoint)
+    ) {
+      return res.redirect(
+        '/admin/payment?err=' +
+          encodeURIComponent('URL Endpoint ImageKit tersebut sudah terdaftar.') +
+          '#storage-section'
+      );
+    }
+
+    const newId = `ik_backup_${Date.now()}`;
+    setting.imagekit_backups.push({
+      id: newId,
+      label,
+      public_key: publicKey,
+      private_key: privateKey,
+      url_endpoint: urlEndpoint,
+      active: true,
+      priority,
+    });
+    await setting.save();
+
+    return res.redirect(
+      '/admin/payment?msg=' +
+        encodeURIComponent(`Akun cadangan "${label}" berhasil diverifikasi & ditambahkan!`) +
+        '#storage-section'
+    );
+  } catch (err) {
+    return res.redirect(
+      '/admin/payment?err=' +
+        encodeURIComponent(`Gagal menambah akun cadangan (cek key/endpoint): ${err.message}`) +
+        '#storage-section'
+    );
+  }
+};
+
+exports.toggleImageKitBackup = async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const setting = await Setting.getGlobal();
+    const target = (setting.imagekit_backups || []).find((b) => b.id === id);
+
+    if (!target) {
+      return res.redirect(
+        '/admin/payment?err=' + encodeURIComponent('Akun cadangan tidak ditemukan.') + '#storage-section'
+      );
+    }
+
+    target.active = !target.active;
+    if (!target.active && setting.imagekit_active_session_account === id) {
+      setting.imagekit_active_session_account = 'auto';
+    }
+    await setting.save();
+
+    const msg = `Akun "${target.label}" sekarang ${target.active ? 'AKTIF' : 'NONAKTIF'}.`;
+    return res.redirect('/admin/payment?msg=' + encodeURIComponent(msg) + '#storage-section');
+  } catch (err) {
+    return res.redirect('/admin/payment?err=' + encodeURIComponent(err.message) + '#storage-section');
+  }
+};
+
+exports.updateImageKitBackupPriority = async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const priority = Math.max(1, toInt(req.body.priority, 1));
+    const setting = await Setting.getGlobal();
+    const target = (setting.imagekit_backups || []).find((b) => b.id === id);
+
+    if (!target) {
+      return res.redirect(
+        '/admin/payment?err=' + encodeURIComponent('Akun cadangan tidak ditemukan.') + '#storage-section'
+      );
+    }
+
+    target.priority = priority;
+    await setting.save();
+    return res.redirect(
+      '/admin/payment?msg=' +
+        encodeURIComponent(`Prioritas akun "${target.label}" diubah ke #${priority}.`) +
+        '#storage-section'
+    );
+  } catch (err) {
+    return res.redirect('/admin/payment?err=' + encodeURIComponent(err.message) + '#storage-section');
+  }
+};
+
+exports.deleteImageKitBackup = async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const setting = await Setting.getGlobal();
+    const beforeLen = (setting.imagekit_backups || []).length;
+    setting.imagekit_backups = (setting.imagekit_backups || []).filter((b) => b.id !== id);
+
+    if (setting.imagekit_backups.length === beforeLen) {
+      return res.status(404).json({ success: false, message: 'Akun cadangan tidak ditemukan.' });
+    }
+
+    if (setting.imagekit_active_session_account === id) {
+      setting.imagekit_active_session_account = 'auto';
+    }
+    await setting.save();
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.testImageKitConnection = async (req, res) => {
+  try {
+    const accountId = String(req.body.account_id || '').trim();
+    if (accountId) {
+      const acc = await imagekit.getAccountById(accountId);
+      if (!acc) {
+        return res.status(404).json({ success: false, message: 'Akun tidak ditemukan.' });
+      }
+      await testImageKitAccount({
+        publicKey: acc.publicKey,
+        privateKey: acc.privateKey,
+        urlEndpoint: acc.urlEndpoint,
+      });
+      return res.json({ success: true, message: `Koneksi ke "${acc.label}" berhasil!` });
+    }
+
+    await testImageKitAccount({
+      publicKey: req.body.public_key,
+      privateKey: req.body.private_key,
+      urlEndpoint: req.body.url_endpoint,
+    });
+    return res.json({ success: true, message: 'Kredensial ImageKit valid & terhubung!' });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message || 'Koneksi gagal.' });
+  }
+};
+
 // =========================================================================
-// 4. KELOLA VOUCHER 5 DIGIT (/admin/vouchers)
+// 5. KELOLA VOUCHER 5 DIGIT (/admin/vouchers)
 // =========================================================================
 exports.getVouchersPage = async (req, res) => {
   try {
@@ -629,7 +892,7 @@ exports.getVouchersPage = async (req, res) => {
 
 exports.saveGlobalVoucherExpiry = async (req, res) => {
   try {
-    const iso = String(req.body.expiry_iso || '').trim(); // YYYY-MM-DDTHH:mm
+    const iso = String(req.body.expiry_iso || '').trim();
     if (!iso) return res.redirect('/admin/vouchers?err=' + encodeURIComponent('Tanggal kedaluwarsa tidak valid.'));
 
     const dt = dayjs.tz(iso, 'Asia/Jakarta');
@@ -649,7 +912,7 @@ exports.saveGlobalVoucherExpiry = async (req, res) => {
 };
 
 function generateRandom5Code() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Tanpa 0/O/1/I agar tidak membingungkan pengunjung
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let out = '';
   for (let i = 0; i < 5; i++) {
     out += chars[Math.floor(Math.random() * chars.length)];
@@ -688,7 +951,6 @@ exports.createVouchers = async (req, res) => {
       return res.redirect('/admin/vouchers?msg=' + encodeURIComponent(`Voucher ${code} berhasil dibuat!`));
     }
 
-    // Mode Generate Massal 5 Digit
     const qty = Math.min(100, Math.max(1, toInt(req.body.qty, 10)));
     const prefix = String(req.body.prefix || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     const createdCodes = [];
@@ -706,9 +968,7 @@ exports.createVouchers = async (req, res) => {
           notes,
         });
         createdCodes.push(code);
-      } catch (_) {
-        // Lewati jika kebetulan duplikat
-      }
+      } catch (_) {}
     }
 
     return res.redirect('/admin/vouchers?msg=' + encodeURIComponent(`${createdCodes.length} kode voucher berhasil digenerate!`));
@@ -727,7 +987,7 @@ exports.deleteVoucher = async (req, res) => {
 };
 
 // =========================================================================
-// 5. IMAGEKIT DIRECT UPLOAD AUTH UNTUK ADMIN BROWSER (BEBAS LIMIT 4.5MB VERCEL)
+// 6. IMAGEKIT DIRECT UPLOAD AUTH UNTUK ADMIN BROWSER (TERKUNCI DI PRIMARY .env)
 // =========================================================================
 exports.getAdminImageKitAuth = (req, res) => {
   try {
