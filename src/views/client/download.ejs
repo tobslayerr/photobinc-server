@@ -1,101 +1,726 @@
-=<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>Download Hasil Foto — Photobinc</title>
+  <title>Galeri Foto — Photobinc</title>
   <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet" />
   <script src="https://rawcdn.githack.com/buzzfeed/libgif-js/master/libgif.js"></script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@600;700;800;900&family=Space+Mono:wght@700&display=swap');
-    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    html, body {
-      margin: 0; padding: 0; width: 100%; min-height: 100dvh;
-      background-color: #f4f4f0;
-      background-image: radial-gradient(#a1a1aa 1.4px, transparent 1.4px);
-      background-size: 20px 20px;
-      font-family: 'Inter', sans-serif; overflow-x: hidden;
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Space+Mono:wght@700&display=swap');
+
+    :root {
+      --bg-base: #090d16;
+      --surface: rgba(17, 24, 39, 0.82);
+      --surface-solid: #111827;
+      --surface-soft: rgba(255, 255, 255, 0.06);
+      --border: rgba(255, 255, 255, 0.11);
+      --border-strong: rgba(255, 255, 255, 0.18);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --pink: #ff99c8;
+      --blue: #90dbf4;
+      --mint: #d0f4de;
+      --green: #4ade80;
+      --yellow: #facc15;
     }
-    .center-wrap { min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 20px; }
-    .state-card { background: #fff; border: 4px solid #111; box-shadow: 8px 8px 0 #111; border-radius: 18px; padding: 32px 24px; max-width: 390px; width: 100%; text-align: center; }
-    .state-icon { width: 68px; height: 68px; margin: 0 auto 14px; border: 3px solid #111; box-shadow: 4px 4px 0 #111; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 36px; }
-    #pb-neo-app { min-height: 100dvh; display: flex; justify-content: center; align-items: flex-start; padding: max(10px, env(safe-area-inset-top)) 12px max(14px, env(safe-area-inset-bottom)) 12px; }
-    .neo-shell { width: 100%; max-width: 470px; display: flex; flex-direction: column; gap: 9px; }
-    .neo-topbar { background: #fff; border: 3px solid #111; box-shadow: 5px 5px 0 #111; border-radius: 14px; padding: 8px 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .neo-brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
-    .neo-avatar { width: 40px; height: 40px; border-radius: 10px; border: 2.5px solid #111; box-shadow: 2px 2px 0 #111; object-fit: cover; flex-shrink: 0; }
-    .neo-brand-title { font-size: 13.5px; font-weight: 900; color: #111; display: flex; align-items: center; gap: 6px; }
-    .neo-count-pill { background: #c084fc; color: #111; border: 2px solid #111; font-family: 'Space Mono', monospace; font-size: 9.5px; font-weight: 700; padding: 1px 6px; border-radius: 6px; }
-    .neo-brand-sub { font-size: 11px; font-weight: 700; color: #52525b; }
-    .neo-brand-sub a { color: #0284c7; text-decoration: none; font-weight: 800; }
-    .neo-top-actions { display: flex; gap: 6px; flex-shrink: 0; }
-    .neo-mini-btn { border: 2.5px solid #111; box-shadow: 3px 3px 0 #111; border-radius: 9px; padding: 7px 10px; font-size: 11px; font-weight: 900; color: #111; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
-    .neo-mini-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #111; }
-    .neo-btn-yellow { background: #facc15; }
-    .neo-btn-white { background: #fff; }
-    .neo-ar-banner { background: linear-gradient(90deg, #4ade80 0%, #a3e635 100%); border: 3px solid #111; box-shadow: 5px 5px 0 #111; border-radius: 14px; padding: 9px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; text-decoration: none; color: #111; }
-    .neo-ar-banner:active { transform: translate(3px, 3px); box-shadow: 2px 2px 0 #111; }
-    .neo-ar-left { display: flex; align-items: center; gap: 9px; min-width: 0; }
-    .neo-ar-icon { width: 34px; height: 34px; background: #111; color: #facc15; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
-    .neo-ar-text strong { display: block; font-size: 12.5px; font-weight: 900; line-height: 1.2; }
-    .neo-ar-text span { display: block; font-size: 10.5px; font-weight: 700; color: #18181b; line-height: 1.25; }
-    .neo-ar-go { background: #111; color: #fff; font-family: 'Space Mono', monospace; font-size: 10.5px; font-weight: 700; padding: 6px 9px; border-radius: 8px; display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; }
-    .neo-sync-banner { background: #fef08a; border: 2.5px dashed #111; box-shadow: 4px 4px 0 #111; border-radius: 11px; padding: 7px 10px; font-size: 11px; font-weight: 800; color: #111; display: flex; align-items: center; justify-content: center; gap: 6px; }
-    .neo-tab-hint { background: #e0f2fe; border: 2px solid #111; box-shadow: 3px 3px 0 #111; border-radius: 9px; padding: 5px 10px; font-size: 11px; font-weight: 700; color: #111; display: flex; align-items: center; justify-content: center; gap: 6px; text-align: center; }
-    .neo-tabs { display: flex; gap: 7px; overflow-x: auto; padding: 2px 2px 5px; scrollbar-width: none; }
-    .neo-tabs::-webkit-scrollbar { display: none; }
-    .neo-tab { flex: 1 0 auto; background: #fff; color: #111; border: 2.5px solid #111; box-shadow: 3px 3px 0 #111; border-radius: 10px; padding: 7px 10px; font-size: 11px; font-weight: 900; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
-    .neo-tab-badge { background: #111; color: #fff; font-family: 'Space Mono', monospace; font-size: 10px; padding: 1px 5px; border-radius: 5px; }
-    .neo-stage-card { background: #fff; border: 3.5px solid #111; box-shadow: 7px 7px 0 #111; border-radius: 18px; padding: 11px; display: flex; flex-direction: column; gap: 9px; }
-    .neo-stage-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .neo-stage-badge { background: #facc15; color: #111; border: 2.5px solid #111; box-shadow: 2.5px 2.5px 0 #111; border-radius: 8px; padding: 4px 10px; font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700; text-transform: uppercase; }
-    .neo-stage-right { display: flex; align-items: center; gap: 6px; }
-    .neo-stage-counter { font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700; color: #111; background: #e4e4e7; border: 2px solid #111; border-radius: 7px; padding: 4px 8px; }
-    .neo-icon-sq { width: 32px; height: 32px; background: #fff; color: #111; border: 2.5px solid #111; box-shadow: 2px 2px 0 #111; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; }
-    .neo-icon-sq.is-liked { background: #fda4af; color: #e11d48; }
-    .neo-viewport { position: relative; width: 100%; height: clamp(245px, 42dvh, 400px); background-color: #18181b; background-image: linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px); background-size: 18px 18px; border: 3px solid #111; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-    .neo-media-slot { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; padding: 6px; cursor: zoom-in; }
-    .neo-media-slot img, .neo-media-slot video { width: 100%; height: 100%; object-fit: contain; border-radius: 6px; display: block; }
-    .neo-nav-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; background: #facc15; color: #111; border: 2.5px solid #111; box-shadow: 3px 3px 0 #111; border-radius: 9px; font-size: 20px; display: none; align-items: center; justify-content: center; cursor: pointer; z-index: 5; }
-    .neo-prev { left: 8px; } .neo-next { right: 8px; }
-    .neo-thumb-strip { display: none; gap: 8px; overflow-x: auto; padding: 2px 2px 4px; scrollbar-width: none; }
-    .neo-thumb-strip::-webkit-scrollbar { display: none; }
-    .neo-thumb-item { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; background: #f4f4f5; border: 2.5px solid #111; box-shadow: 2.5px 2.5px 0 #111; border-radius: 9px; padding: 4px 8px 4px 4px; cursor: pointer; font-size: 11px; font-weight: 800; color: #111; }
-    .neo-thumb-item.is-selected { background: #38bdf8; }
-    .neo-thumb-preview { width: 28px; height: 28px; border-radius: 6px; border: 2px solid #111; object-fit: cover; background: #111; display: flex; align-items: center; justify-content: center; color: #facc15; font-size: 14px; }
-    .neo-caption-bar { background: #f8fafc; border: 2px solid #111; border-radius: 10px; padding: 7px 10px; font-size: 11.5px; font-weight: 700; color: #27272a; line-height: 1.4; }
-    .neo-action-grid { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 8px; }
-    .neo-act-btn { border: 3px solid #111; box-shadow: 4px 4px 0 #111; border-radius: 11px; padding: 11px 6px; font-size: 11px; font-weight: 900; text-transform: uppercase; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap; }
-    .neo-act-btn:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 #111; }
-    .neo-act-dl { background: #4ade80; color: #111; }
-    .neo-act-black { background: #111; color: #facc15; }
-    .neo-act-ig { background: #f472b6; color: #111; }
-    .neo-act-tt { background: #fff; color: #111; }
-    .neo-footer-note { text-align: center; font-size: 11.5px; font-weight: 700; color: #52525b; padding: 2px 0 4px; }
-    .neo-lightbox { position: fixed; inset: 0; z-index: 99999; background: rgba(12,12,16,0.92); display: none; flex-direction: column; align-items: center; justify-content: center; padding: 18px; }
-    .neo-lb-close { position: fixed; top: max(16px, env(safe-area-inset-top)); right: 16px; background: #facc15; color: #111; border: 3px solid #111; box-shadow: 4px 4px 0 #111; border-radius: 10px; padding: 8px 14px; font-size: 12px; font-weight: 900; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
-    .neo-lb-content { width: 100%; max-width: 92vw; max-height: 82dvh; display: flex; align-items: center; justify-content: center; }
-    .neo-lb-content img, .neo-lb-content video { max-width: 100%; max-height: 82dvh; border: 4px solid #fff; border-radius: 12px; object-fit: contain; }
-    .spin-anim { animation: spin 1s linear infinite; display: inline-block; }
-    @keyframes spin { 100% { transform: rotate(360deg); } }
-    @media (max-width: 375px) { .neo-action-grid { grid-template-columns: 1fr 1fr; } .neo-act-dl { grid-column: span 2; } .neo-mini-btn span { display: none; } }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      min-height: 100dvh;
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Ambient Studio Background */
+    .bg-ambient {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .bg-ambient::before {
+      content: '';
+      position: absolute;
+      width: 340px;
+      height: 340px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255, 153, 200, 0.22) 0%, transparent 70%);
+      top: -110px;
+      left: -100px;
+    }
+    .bg-ambient::after {
+      content: '';
+      position: absolute;
+      width: 360px;
+      height: 360px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(144, 219, 244, 0.18) 0%, transparent 70%);
+      bottom: -120px;
+      right: -110px;
+    }
+
+    /* Empty / Loading State */
+    .center-wrap {
+      position: relative;
+      z-index: 2;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .state-card {
+      background: var(--surface);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid var(--border-strong);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+      border-radius: 26px;
+      padding: 36px 26px;
+      max-width: 380px;
+      width: 100%;
+      text-align: center;
+    }
+    .state-icon {
+      width: 72px;
+      height: 72px;
+      margin: 0 auto 18px;
+      border-radius: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 34px;
+      color: #0f172a;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.3);
+    }
+    .state-card h2 {
+      margin: 0 0 8px;
+      font-size: 21px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #fff;
+    }
+    .state-card p {
+      margin: 0;
+      font-size: 13.5px;
+      line-height: 1.55;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* Main Shell */
+    #pb-neo-app {
+      position: relative;
+      z-index: 2;
+      min-height: 100dvh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: max(12px, env(safe-area-inset-top)) 14px max(22px, env(safe-area-inset-bottom)) 14px;
+    }
+    .neo-shell {
+      width: 100%;
+      max-width: 460px;
+      display: flex;
+      flex-direction: column;
+      gap: 11px;
+    }
+
+    /* Top Brand Bar */
+    .neo-topbar {
+      background: var(--surface);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+    }
+    .neo-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+    .neo-avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 13px;
+      border: 1.5px solid rgba(255, 153, 200, 0.55);
+      object-fit: cover;
+      flex-shrink: 0;
+      background: #1e293b;
+    }
+    .neo-brand-info {
+      min-width: 0;
+    }
+    .neo-brand-title {
+      font-size: 14.5px;
+      font-weight: 800;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      letter-spacing: 0.02em;
+    }
+    .neo-count-pill {
+      background: rgba(255, 153, 200, 0.18);
+      color: var(--pink);
+      border: 1px solid rgba(255, 153, 200, 0.4);
+      font-family: 'Space Mono', monospace;
+      font-size: 9.5px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 99px;
+      white-space: nowrap;
+    }
+    .neo-brand-sub {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .neo-brand-sub a {
+      color: var(--blue);
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    .neo-top-actions {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .neo-mini-btn {
+      border: 1px solid var(--border-strong);
+      border-radius: 11px;
+      padding: 8px 11px;
+      font-size: 11px;
+      font-weight: 800;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: transform 0.14s ease, opacity 0.14s ease, background 0.2s ease;
+    }
+    .neo-mini-btn:active {
+      transform: scale(0.95);
+    }
+    .neo-btn-yellow {
+      background: rgba(250, 204, 21, 0.15);
+      border-color: rgba(250, 204, 21, 0.45);
+      color: #fde047;
+    }
+    .neo-btn-white {
+      background: rgba(255, 255, 255, 0.08);
+      color: #f8fafc;
+    }
+
+    /* AR Banner */
+    .neo-ar-banner {
+      background: linear-gradient(135deg, rgba(74, 222, 128, 0.18) 0%, rgba(56, 189, 248, 0.16) 100%);
+      border: 1px solid rgba(74, 222, 128, 0.45);
+      border-radius: 16px;
+      padding: 10px 13px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      text-decoration: none;
+      color: #fff;
+      transition: transform 0.15s ease;
+    }
+    .neo-ar-banner:active {
+      transform: scale(0.98);
+    }
+    .neo-ar-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+    .neo-ar-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, #4ade80, #22c55e);
+      color: #052e16;
+      border-radius: 11px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 19px;
+      flex-shrink: 0;
+    }
+    .neo-ar-text strong {
+      display: block;
+      font-size: 12.5px;
+      font-weight: 800;
+      line-height: 1.2;
+      color: #ecfdf5;
+    }
+    .neo-ar-text span {
+      display: block;
+      font-size: 11px;
+      font-weight: 500;
+      color: #cbd5e1;
+      line-height: 1.3;
+      margin-top: 2px;
+    }
+    .neo-ar-go {
+      background: #4ade80;
+      color: #052e16;
+      font-family: 'Space Mono', monospace;
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 6px 10px;
+      border-radius: 9px;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      flex-shrink: 0;
+    }
+
+    /* Sync Banner */
+    .neo-sync-banner {
+      background: rgba(250, 204, 21, 0.12);
+      border: 1px dashed rgba(250, 204, 21, 0.5);
+      border-radius: 12px;
+      padding: 8px 12px;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #fde047;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+    }
+
+    /* Category Tabs */
+    .neo-tabs-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .neo-tab-hint {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 0 4px;
+    }
+    .neo-tab-hint strong {
+      color: var(--blue);
+    }
+    .neo-tabs {
+      display: flex;
+      gap: 7px;
+      overflow-x: auto;
+      padding: 2px 1px;
+      scrollbar-width: none;
+    }
+    .neo-tabs::-webkit-scrollbar {
+      display: none;
+    }
+    .neo-tab {
+      flex: 1 0 auto;
+      background: rgba(255, 255, 255, 0.06);
+      color: #cbd5e1;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      padding: 9px 12px;
+      font-size: 11.5px;
+      font-weight: 800;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.18s ease;
+      font-family: inherit;
+    }
+    .neo-tab.is-active {
+      color: #090d16;
+      border-color: transparent;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+    }
+    .neo-tab-badge {
+      background: rgba(255, 255, 255, 0.14);
+      color: #fff;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 99px;
+    }
+    .neo-tab.is-active .neo-tab-badge {
+      background: rgba(9, 13, 22, 0.18);
+      color: #090d16;
+    }
+
+    /* Main Stage Card */
+    .neo-stage-card {
+      background: var(--surface);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid var(--border-strong);
+      border-radius: 22px;
+      padding: 13px;
+      display: flex;
+      flex-direction: column;
+      gap: 11px;
+      box-shadow: 0 20px 44px rgba(0, 0, 0, 0.4);
+    }
+    .neo-stage-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .neo-stage-badge {
+      background: var(--pink);
+      color: #090d16;
+      border-radius: 99px;
+      padding: 5px 12px;
+      font-family: 'Space Mono', monospace;
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .neo-stage-right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .neo-stage-counter {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      color: #e2e8f0;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      padding: 4px 10px;
+    }
+    .neo-icon-sq {
+      width: 34px;
+      height: 34px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      cursor: pointer;
+      transition: transform 0.14s ease, background 0.18s ease;
+    }
+    .neo-icon-sq:active {
+      transform: scale(0.92);
+    }
+    .neo-icon-sq.is-liked {
+      background: rgba(244, 63, 94, 0.22);
+      border-color: rgba(244, 63, 94, 0.55);
+      color: #fb7185;
+    }
+
+    /* Viewport */
+    .neo-viewport {
+      position: relative;
+      width: 100%;
+      height: clamp(270px, 45dvh, 430px);
+      background-color: #05070d;
+      background-image:
+        radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+      background-size: 16px 16px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .neo-media-slot {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+      cursor: zoom-in;
+    }
+    .neo-media-slot img,
+    .neo-media-slot video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      border-radius: 10px;
+      display: block;
+    }
+    .neo-nav-arrow {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 36px;
+      height: 36px;
+      background: rgba(15, 23, 42, 0.78);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 50%;
+      font-size: 20px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 5;
+      transition: transform 0.14s ease, background 0.15s ease;
+    }
+    .neo-nav-arrow:active {
+      transform: translateY(-50%) scale(0.92);
+    }
+    .neo-prev { left: 10px; }
+    .neo-next { right: 10px; }
+
+    /* Thumb Strip */
+    .neo-thumb-strip {
+      display: none;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 2px 1px;
+      scrollbar-width: none;
+    }
+    .neo-thumb-strip::-webkit-scrollbar {
+      display: none;
+    }
+    .neo-thumb-item {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      padding: 4px 10px 4px 4px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 700;
+      color: #cbd5e1;
+      font-family: inherit;
+      transition: all 0.16s ease;
+    }
+    .neo-thumb-item.is-selected {
+      background: rgba(144, 219, 244, 0.2);
+      border-color: var(--blue);
+      color: #fff;
+    }
+    .neo-thumb-preview {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      object-fit: cover;
+      background: #0f172a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--pink);
+      font-size: 14px;
+    }
+
+    /* Caption Bar */
+    .neo-caption-bar {
+      background: rgba(255, 255, 255, 0.045);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 9px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      color: #cbd5e1;
+      line-height: 1.45;
+    }
+    .neo-caption-bar strong {
+      color: #fff;
+      font-weight: 800;
+      margin-right: 4px;
+    }
+
+    /* Action Buttons */
+    .neo-action-grid {
+      display: grid;
+      grid-template-columns: 1.35fr 1fr 1fr;
+      gap: 8px;
+    }
+    .neo-act-btn {
+      border: none;
+      border-radius: 13px;
+      padding: 12px 8px;
+      font-size: 11.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      white-space: nowrap;
+      font-family: inherit;
+      transition: transform 0.14s ease, opacity 0.15s ease;
+    }
+    .neo-act-btn:active {
+      transform: scale(0.96);
+    }
+    .neo-act-dl {
+      background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+      color: #052e16;
+      box-shadow: 0 8px 20px rgba(34, 197, 94, 0.3);
+    }
+    .neo-act-black {
+      background: linear-gradient(135deg, #facc15 0%, #eab308 100%);
+      color: #1c1917;
+    }
+    .neo-act-ig {
+      background: linear-gradient(135deg, #f472b6 0%, #ec4899 100%);
+      color: #fff;
+    }
+    .neo-act-tt {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid var(--border-strong);
+      color: #f8fafc;
+    }
+
+    /* Footer */
+    .neo-footer-note {
+      text-align: center;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+      padding: 4px 0 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+    }
+    .neo-footer-note strong {
+      color: var(--pink);
+    }
+
+    /* Lightbox */
+    .neo-lightbox {
+      position: fixed;
+      inset: 0;
+      z-index: 99999;
+      background: rgba(5, 7, 13, 0.94);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+    }
+    .neo-lb-close {
+      position: fixed;
+      top: max(16px, env(safe-area-inset-top));
+      right: 16px;
+      background: rgba(255, 255, 255, 0.14);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 99px;
+      padding: 8px 15px;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: inherit;
+    }
+    .neo-lb-content {
+      width: 100%;
+      max-width: 94vw;
+      max-height: 82dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .neo-lb-content img,
+    .neo-lb-content video {
+      max-width: 100%;
+      max-height: 82dvh;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.65);
+      object-fit: contain;
+    }
+
+    .spin-anim {
+      animation: spin 1s linear infinite;
+      display: inline-block;
+    }
+    @keyframes spin {
+      100% { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 380px) {
+      .neo-action-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+      .neo-act-dl {
+        grid-column: span 2;
+      }
+      .neo-mini-btn span {
+        display: none;
+      }
+    }
   </style>
 </head>
 <body>
+  <div class="bg-ambient" aria-hidden="true"></div>
+
   <% if (totalPosts === 0) { %>
     <div class="center-wrap">
       <% if (oid) { %>
         <div class="state-card">
-          <div class="state-icon" style="background:#facc15;"><i class="ri-loader-4-line spin-anim"></i></div>
-          <h2 style="margin:0 0 8px; font-size:22px; font-weight:900;">MERAKIT GALERI...</h2>
-          <p style="margin:0; font-size:14px; font-weight:600; color:#444;">Mesin sedang mengunggah Foto & Live Video kamu.<br>Halaman otomatis memuat dalam beberapa detik.</p>
+          <div class="state-icon" style="background: linear-gradient(135deg, #facc15, #fb923c);">
+            <i class="ri-loader-4-line spin-anim"></i>
+          </div>
+          <h2>Merakit Galeri...</h2>
+          <p>Mesin sedang mengunggah Foto &amp; Live Video kamu.<br />Halaman akan otomatis terbuka dalam beberapa detik.</p>
         </div>
         <script>setTimeout(() => location.reload(), 3000);</script>
       <% } else { %>
         <div class="state-card">
-          <div class="state-icon" style="background:#f87171;"><i class="ri-error-warning-fill"></i></div>
-          <h2 style="margin:0 0 8px; font-size:22px; font-weight:900;">DOKUMEN KOSONG!</h2>
-          <p style="margin:0; font-size:14px; font-weight:600; color:#444;">Tautan tidak valid atau masa berlaku galeri telah habis.</p>
+          <div class="state-icon" style="background: linear-gradient(135deg, #fb7185, #ef4444); color: #fff;">
+            <i class="ri-error-warning-fill"></i>
+          </div>
+          <h2>Galeri Tidak Tersedia</h2>
+          <p>Tautan tidak valid atau masa berlaku galeri telah habis.</p>
         </div>
       <% } %>
     </div>
@@ -103,37 +728,49 @@
     <div id="pb-neo-app" data-total-posts="<%= totalPosts %>">
       <div class="neo-shell">
 
+        <!-- TOP BRAND BAR -->
         <div class="neo-topbar">
           <div class="neo-brand">
             <img src="<%= profileImg %>" alt="Photobinc" class="neo-avatar" />
-            <div>
-              <div class="neo-brand-title">PHOTOBINC <span class="neo-count-pill"><%= totalPosts %> FILE</span></div>
-              <div class="neo-brand-sub">Photobooth UNJ • <a href="https://www.instagram.com/photobinc" target="_blank">@photobinc</a></div>
+            <div class="neo-brand-info">
+              <div class="neo-brand-title">
+                PHOTOBINC
+                <span class="neo-count-pill"><%= totalPosts %> FILE</span>
+              </div>
+              <div class="neo-brand-sub">
+                Digital Gallery &bull; <a href="https://www.instagram.com/photobinc" target="_blank" rel="noopener">@photobinc</a>
+              </div>
             </div>
           </div>
           <div class="neo-top-actions">
-            <button type="button" id="btn-copy-link" class="neo-mini-btn neo-btn-yellow"><i class="ri-links-line"></i> <span>SALIN</span></button>
-            <a href="https://www.instagram.com/photobinc" target="_blank" class="neo-mini-btn neo-btn-white"><i class="ri-instagram-line"></i> <span>IG</span></a>
+            <button type="button" id="btn-copy-link" class="neo-mini-btn neo-btn-yellow" title="Salin Link Galeri">
+              <i class="ri-links-line"></i> <span>SALIN</span>
+            </button>
+            <a href="https://www.instagram.com/photobinc" target="_blank" rel="noopener" class="neo-mini-btn neo-btn-white" title="Instagram Photobinc">
+              <i class="ri-instagram-line"></i> <span>IG</span>
+            </a>
           </div>
         </div>
 
+        <!-- LIVE PHOTO AR BANNER -->
         <% if (liveArUrl) { %>
           <a href="<%= liveArUrl %>" class="neo-ar-banner">
             <div class="neo-ar-left">
               <span class="neo-ar-icon"><i class="ri-camera-lens-fill"></i></span>
               <div class="neo-ar-text">
                 <strong>SCAN LIVE PHOTO AR</strong>
-                <span>Arahkan kamera ke hasil cetak fisikmu biar bergerak!</span>
+                <span>Arahkan kamera ke hasil cetak fisikmu agar bergerak!</span>
               </div>
             </div>
             <span class="neo-ar-go">BUKA <i class="ri-arrow-right-line"></i></span>
           </a>
         <% } %>
 
+        <!-- SYNC PROGRESS BANNER -->
         <% if (!isUploadComplete) { %>
           <div class="neo-sync-banner">
             <i class="ri-loader-4-line spin-anim"></i>
-            <span>Mesin sedang mengunggah sisa fotomu... (Auto-refresh)</span>
+            <span>Sedang mengunggah sisa fotomu... (Auto-refresh)</span>
           </div>
           <script>
             setInterval(async function() {
@@ -150,37 +787,38 @@
           </script>
         <% } %>
 
-        <% if (availableCats.length > 1) { %>
-          <div class="neo-tab-hint">
-            <i class="ri-hand-coin-line" style="font-size:14px; color:#0284c7;"></i>
-            <span>Klik tab di bawah untuk lihat hasil lain (<strong>Live Video, GIF & Pose HD</strong>)!</span>
+        <!-- CATEGORY TABS -->
+        <div class="neo-tabs-wrap">
+          <div class="neo-tab-hint" id="neo-tab-hint" style="display:none;">
+            <i class="ri-sparkling-2-fill" style="color: var(--blue);"></i>
+            <span>Pilih tab di bawah untuk lihat <strong>Frame, Live Video, GIF &amp; Pose HD</strong></span>
           </div>
-        <% } %>
-
-        <div class="neo-tabs" id="neo-tabs">
-          <% availableCats.forEach(function(cat, idx) { %>
-            <button type="button" class="neo-tab <%= idx === 0 ? 'is-active' : '' %>" data-cat="<%= cat.key %>" data-color="<%= cat.color %>">
-              <i class="<%= cat.icon %>"></i>
-              <span><%= cat.label %></span>
-              <span class="neo-tab-badge"><%= cat.count %></span>
-            </button>
-          <% }) %>
+          <div class="neo-tabs" id="neo-tabs">
+            <% availableCats.forEach(function(cat, idx) { %>
+              <button type="button" class="neo-tab <%= idx === 0 ? 'is-active' : '' %>" data-cat="<%= cat.key %>" data-color="<%= cat.color %>">
+                <i class="<%= cat.icon %>"></i>
+                <span><%= cat.label %></span>
+                <span class="neo-tab-badge"><%= cat.count %></span>
+              </button>
+            <% }) %>
+          </div>
         </div>
 
+        <!-- MAIN STAGE CARD -->
         <div class="neo-stage-card">
           <div class="neo-stage-head">
             <div class="neo-stage-badge" id="stage-badge">LOADING...</div>
             <div class="neo-stage-right">
               <span class="neo-stage-counter" id="stage-counter">1 / 1</span>
-              <button type="button" id="btn-like" class="neo-icon-sq"><i class="ri-heart-3-line"></i></button>
-              <button type="button" id="btn-zoom" class="neo-icon-sq"><i class="ri-fullscreen-line"></i></button>
+              <button type="button" id="btn-like" class="neo-icon-sq" aria-label="Suka"><i class="ri-heart-3-line"></i></button>
+              <button type="button" id="btn-zoom" class="neo-icon-sq" aria-label="Perbesar"><i class="ri-fullscreen-line"></i></button>
             </div>
           </div>
 
-          <div class="neo-viewport">
-            <button type="button" id="btn-prev" class="neo-nav-arrow neo-prev"><i class="ri-arrow-left-s-line"></i></button>
+          <div class="neo-viewport" id="stage-viewport">
+            <button type="button" id="btn-prev" class="neo-nav-arrow neo-prev" aria-label="Sebelumnya"><i class="ri-arrow-left-s-line"></i></button>
             <div class="neo-media-slot" id="stage-media-slot"></div>
-            <button type="button" id="btn-next" class="neo-nav-arrow neo-next"><i class="ri-arrow-right-s-line"></i></button>
+            <button type="button" id="btn-next" class="neo-nav-arrow neo-next" aria-label="Berikutnya"><i class="ri-arrow-right-s-line"></i></button>
           </div>
 
           <div class="neo-thumb-strip" id="neo-thumb-strip"></div>
@@ -194,13 +832,15 @@
           </div>
         </div>
 
+        <!-- FOOTER -->
         <div class="neo-footer-note">
-          <i class="ri-verified-badge-fill" style="color:#16a34a;"></i>
-          #Photobinc • Tag <strong>@photobinc</strong> di Story kamu!
+          <i class="ri-verified-badge-fill" style="color: #4ade80;"></i>
+          <span>#Photobinc &bull; Tag <strong>@photobinc</strong> di Story kamu!</span>
         </div>
       </div>
     </div>
 
+    <!-- FULLSCREEN LIGHTBOX -->
     <div id="neo-lightbox" class="neo-lightbox">
       <button type="button" id="btn-close-lb" class="neo-lb-close"><i class="ri-close-line"></i> TUTUP</button>
       <div id="neo-lb-content" class="neo-lb-content"></div>
@@ -208,12 +848,65 @@
 
     <script>
       (function() {
-        const PB_ITEMS = <%- JSON.stringify(mediaItems) %>;
-        const likedSet = new Set();
+        const RAW_PB_ITEMS = <%- JSON.stringify(mediaItems).replace(/</g, '\\u003c') %>;
+        const SERVER_CATS  = <%- JSON.stringify(availableCats).replace(/</g, '\\u003c') %>;
 
+        // Pengaman otomatis: jika ada file pose HD (final_raw_ / raw- / type raw)
+        // yang sempat masuk kategori 'frame' dari upload mode Vercel, pisahkan ke kategori 'raw'
+        let rawCounter = 0;
+        const PB_ITEMS = RAW_PB_ITEMS.map((item) => {
+          const clone = { ...item };
+          const checkStr = [clone.alias_name, clone.url, clone.filename, clone.id].filter(Boolean).join(' ').toLowerCase();
+          const isRawLike =
+            clone.cat === 'raw' ||
+            clone.type === 'raw' ||
+            /(^|[\/_\-])final_raw_|(^|[\/_\-])raw[\-_]/i.test(checkStr);
+
+          if (isRawLike && clone.type !== 'video' && clone.type !== 'gif') {
+            rawCounter++;
+            if (clone.cat !== 'raw') {
+              clone.cat = 'raw';
+              clone.badge = 'POSE HD #' + rawCounter;
+              clone.accent = '#90dbf4';
+              clone.thumbLabel = 'Pose #' + rawCounter;
+              clone.caption = 'Foto Pose HD satuan #' + rawCounter + ' siap diunduh resolusi penuh!';
+            }
+          }
+          return clone;
+        });
+
+        const CAT_META = {
+          frame: { label: 'Frame',      icon: 'ri-image-2-fill',  color: '#ff99c8' },
+          video: { label: 'Live Video', icon: 'ri-movie-2-fill',  color: '#facc15' },
+          gif:   { label: 'GIF',        icon: 'ri-file-gif-fill', color: '#d0f4de' },
+          raw:   { label: 'Pose HD',    icon: 'ri-camera-3-fill', color: '#90dbf4' },
+        };
+        SERVER_CATS.forEach((c) => {
+          if (c && c.key) {
+            CAT_META[c.key] = {
+              label: c.label || (CAT_META[c.key] && CAT_META[c.key].label) || c.key,
+              icon:  c.icon  || (CAT_META[c.key] && CAT_META[c.key].icon)  || 'ri-image-line',
+              color: (CAT_META[c.key] && CAT_META[c.key].color) || c.color || '#90dbf4',
+            };
+          }
+        });
+
+        const CAT_ORDER = ['frame', 'video', 'gif', 'raw'];
+        const countByCat = {};
+        PB_ITEMS.forEach((it) => {
+          countByCat[it.cat] = (countByCat[it.cat] || 0) + 1;
+        });
+        const allCatKeys = [
+          ...CAT_ORDER.filter((k) => countByCat[k] > 0),
+          ...Object.keys(countByCat).filter((k) => !CAT_ORDER.includes(k) && countByCat[k] > 0),
+        ];
+
+        const likedSet   = new Set();
         const tabsWrap   = document.getElementById('neo-tabs');
+        const tabHint    = document.getElementById('neo-tab-hint');
         const stageBadge = document.getElementById('stage-badge');
         const stageCount = document.getElementById('stage-counter');
+        const viewport   = document.getElementById('stage-viewport');
         const mediaSlot  = document.getElementById('stage-media-slot');
         const thumbStrip = document.getElementById('neo-thumb-strip');
         const captionBar = document.getElementById('stage-caption');
@@ -229,7 +922,27 @@
         const lbContent  = document.getElementById('neo-lb-content');
         const btnCloseLb = document.getElementById('btn-close-lb');
 
-        let activeCat = PB_ITEMS.length > 0 ? PB_ITEMS[0].cat : 'frame';
+        // Render ulang tab kategori sesuai hasil normalisasi
+        if (allCatKeys.length > 0) {
+          tabsWrap.innerHTML = '';
+          allCatKeys.forEach((key, idx) => {
+            const meta = CAT_META[key] || { label: key.toUpperCase(), icon: 'ri-image-line', color: '#90dbf4' };
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'neo-tab' + (idx === 0 ? ' is-active' : '');
+            btn.dataset.cat = key;
+            btn.dataset.color = meta.color;
+            btn.innerHTML =
+              '<i class="' + meta.icon + '"></i>' +
+              '<span>' + meta.label + '</span>' +
+              '<span class="neo-tab-badge">' + countByCat[key] + '</span>';
+            btn.addEventListener('click', () => selectCategory(key));
+            tabsWrap.appendChild(btn);
+          });
+          if (tabHint) tabHint.style.display = allCatKeys.length > 1 ? 'flex' : 'none';
+        }
+
+        let activeCat = allCatKeys[0] || (PB_ITEMS.length > 0 ? PB_ITEMS[0].cat : 'frame');
         let filtered  = [];
         let activeIdx = 0;
 
@@ -251,7 +964,7 @@
               chip.innerHTML = '<span class="neo-thumb-preview"><i class="ri-play-fill"></i></span><span>' + item.thumbLabel + '</span>';
             } else {
               const thumbImg = document.createElement('img');
-              thumbImg.src = item.previewUrl;
+              thumbImg.src = item.previewUrl || item.url;
               thumbImg.className = 'neo-thumb-preview';
               thumbImg.alt = '';
               thumbImg.onerror = function() {
@@ -271,10 +984,11 @@
           const item = getCurrentItem();
           if (!item) return;
 
+          const metaColor = (CAT_META[item.cat] && CAT_META[item.cat].color) || item.accent || '#ff99c8';
           stageBadge.innerText = item.badge;
-          stageBadge.style.background = item.accent || '#facc15';
+          stageBadge.style.background = metaColor;
           stageCount.innerText = (activeIdx + 1) + ' / ' + filtered.length;
-          captionBar.innerHTML = '<strong>photobinc</strong> ' + item.caption;
+          captionBar.innerHTML = '<strong>photobinc</strong> ' + (item.caption || '');
 
           if (item.type === 'gif') {
             btnActDl.innerHTML = '<i class="ri-file-gif-fill"></i> SIMPAN GIF';
@@ -306,7 +1020,7 @@
             v.play().catch(() => {});
           } else {
             const img = document.createElement('img');
-            img.src = item.previewUrl;
+            img.src = item.previewUrl || item.url;
             img.alt = item.badge;
             img.onerror = function() {
               if (this.src !== item.url) this.src = item.url;
@@ -324,16 +1038,37 @@
           tabsWrap.querySelectorAll('.neo-tab').forEach(btn => {
             const isMatch = btn.dataset.cat === catKey;
             btn.classList.toggle('is-active', isMatch);
-            btn.style.background = isMatch ? (btn.dataset.color || '#facc15') : '#ffffff';
+            btn.style.background = isMatch ? (btn.dataset.color || '#ff99c8') : 'rgba(255, 255, 255, 0.06)';
           });
           renderStage();
         }
 
-        tabsWrap.querySelectorAll('.neo-tab').forEach(btn => {
-          btn.addEventListener('click', () => selectCategory(btn.dataset.cat));
-        });
-        btnPrev.addEventListener('click', () => { activeIdx = (activeIdx - 1 + filtered.length) % filtered.length; renderStage(); });
-        btnNext.addEventListener('click', () => { activeIdx = (activeIdx + 1) % filtered.length; renderStage(); });
+        function goPrev() {
+          if (filtered.length <= 1) return;
+          activeIdx = (activeIdx - 1 + filtered.length) % filtered.length;
+          renderStage();
+        }
+        function goNext() {
+          if (filtered.length <= 1) return;
+          activeIdx = (activeIdx + 1) % filtered.length;
+          renderStage();
+        }
+
+        btnPrev.addEventListener('click', goPrev);
+        btnNext.addEventListener('click', goNext);
+
+        // Dukungan Swipe Kiri/Kanan di Viewport Mobile
+        let touchStartX = 0;
+        viewport.addEventListener('touchstart', (e) => {
+          touchStartX = e.changedTouches[0].screenX;
+        }, { passive: true });
+        viewport.addEventListener('touchend', (e) => {
+          const diff = e.changedTouches[0].screenX - touchStartX;
+          if (Math.abs(diff) > 45) {
+            if (diff < 0) goNext(); else goPrev();
+          }
+        }, { passive: true });
+
         btnLike.addEventListener('click', () => {
           const item = getCurrentItem();
           if (!item) return;
@@ -368,8 +1103,15 @@
           navigator.clipboard.writeText(window.location.href).then(() => {
             const orig = btn.innerHTML;
             btn.innerHTML = '<i class="ri-check-fill"></i> <span>DISALIN!</span>';
-            btn.style.background = '#4ade80';
-            setTimeout(() => { btn.innerHTML = orig; btn.style.background = '#facc15'; }, 2500);
+            btn.style.background = 'rgba(74, 222, 128, 0.25)';
+            btn.style.borderColor = '#4ade80';
+            btn.style.color = '#86efac';
+            setTimeout(() => {
+              btn.innerHTML = orig;
+              btn.style.background = '';
+              btn.style.borderColor = '';
+              btn.style.color = '';
+            }, 2200);
           });
         });
 
