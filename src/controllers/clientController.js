@@ -1,23 +1,50 @@
 const path = require('path');
+const imagekit = require('../config/imagekit');
 const Transaction = require('../models/Transaction');
 const MediaAsset = require('../models/MediaAsset');
 
-function isAllowedMediaUrl(rawUrl) {
+async function getAllowedImageKitMeta() {
+  const endpoints = await imagekit.getAllowedUrlEndpoints();
+  const hostnames = new Set(['ik.imagekit.io']);
+
+  if (process.env.IMAGEKIT_URL_ENDPOINT) {
+    try {
+      hostnames.add(new URL(process.env.IMAGEKIT_URL_ENDPOINT).hostname);
+    } catch (_) {}
+  }
+
+  for (const ep of endpoints) {
+    try {
+      hostnames.add(new URL(ep).hostname);
+    } catch (_) {}
+  }
+
+  return { endpoints, hostnames };
+}
+
+async function isAllowedMediaUrl(rawUrl) {
   try {
     const u = new URL(rawUrl);
     if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
-    const ikHost = process.env.IMAGEKIT_URL_ENDPOINT ? new URL(process.env.IMAGEKIT_URL_ENDPOINT).hostname : '';
-    return u.hostname === 'ik.imagekit.io' || (ikHost && u.hostname === ikHost);
+
+    const { endpoints, hostnames } = await getAllowedImageKitMeta();
+    if (hostnames.has(u.hostname)) return true;
+    return endpoints.some((ep) => rawUrl.startsWith(ep));
   } catch {
     return false;
   }
 }
 
-function withImageKitOriginal(url) {
+function isImageKitHost(hostname, allowedHostnames) {
+  if (hostname === 'ik.imagekit.io') return true;
+  return Boolean(allowedHostnames && allowedHostnames.has(hostname));
+}
+
+function withImageKitOriginal(url, allowedHostnames = null) {
   if (!url) return '';
   try {
     const u = new URL(url);
-    if (u.hostname === 'ik.imagekit.io') {
+    if (isImageKitHost(u.hostname, allowedHostnames)) {
       u.searchParams.set('tr', 'orig-true');
       return u.toString();
     }
@@ -25,11 +52,11 @@ function withImageKitOriginal(url) {
   return url;
 }
 
-function withImageKitPreview(url, isImage) {
+function withImageKitPreview(url, isImage, allowedHostnames = null) {
   if (!isImage || !url) return url;
   try {
     const u = new URL(url);
-    if (u.hostname === 'ik.imagekit.io') {
+    if (isImageKitHost(u.hostname, allowedHostnames)) {
       u.searchParams.set('tr', 'w-800,q-85,f-auto');
       return u.toString();
     }
@@ -65,20 +92,30 @@ async function resolveSessionMedia(req) {
   }
 
   const urlMap = new Map();
+  const typeMap = new Map();
+
   if (trx && Array.isArray(trx.media_assets)) {
     trx.media_assets.forEach((a) => {
-      if (a.filename && a.url) urlMap.set(a.filename, a.url);
+      if (!a.filename) return;
+      const cleanName = path.basename(a.filename.trim());
+      if (a.url) urlMap.set(cleanName, a.url);
+      if (a.type) typeMap.set(cleanName, String(a.type).toLowerCase());
     });
   }
 
-  const missingNames = filenames.filter((fn) => !urlMap.has(fn));
+  const cleanFilenames = filenames.map((fn) => path.basename(fn)).filter(Boolean);
+  const missingNames = cleanFilenames.filter((fn) => !urlMap.has(fn) || !typeMap.has(fn));
   if (missingNames.length > 0) {
     const assetDocs = await MediaAsset.find({ filename: { $in: missingNames } }).lean();
     assetDocs.forEach((a) => {
-      if (a.filename && a.url) urlMap.set(a.filename, a.url);
+      if (!a.filename) return;
+      const cleanName = path.basename(a.filename.trim());
+      if (a.url && !urlMap.has(cleanName)) urlMap.set(cleanName, a.url);
+      if (a.type && !typeMap.has(cleanName)) typeMap.set(cleanName, String(a.type).toLowerCase());
     });
   }
 
+  const { hostnames: allowedHostnames } = await getAllowedImageKitMeta();
   const fallbackEndpoint = (process.env.IMAGEKIT_URL_ENDPOINT || '').replace(/\/+$/, '');
   const urlsFrame = [];
   const urlsLive = [];
@@ -86,8 +123,7 @@ async function resolveSessionMedia(req) {
   const urlsRaw = [];
   let isNewspaperHint = Boolean(trx && String(trx.package_name || '').toLowerCase().includes('news'));
 
-  for (const file of filenames) {
-    const clean = path.basename(file);
+  for (const clean of cleanFilenames) {
     const ext = path.extname(clean).replace('.', '').toLowerCase();
     const fullUrl = urlMap.get(clean) || (fallbackEndpoint ? `${fallbackEndpoint}/photobooth/sessions/${clean}` : '');
     if (!fullUrl) continue;
@@ -100,18 +136,38 @@ async function resolveSessionMedia(req) {
       isNewspaperHint = true;
     }
 
-    const isRaw = /^raw[-_]/i.test(clean);
-    const isLive = /^live[-_]/i.test(clean) || ['mp4', 'webm', 'mov'].includes(ext);
-    const isSlide = /^slide[-_]/i.test(clean) || (ext === 'gif' && !isRaw);
+    const dbType = typeMap.get(clean) || '';
+    const isRaw = dbType === 'raw' || /^(final_)?raw[-_]/i.test(clean);
+    const isLive =
+      dbType === 'video' ||
+      /^(final_video|live)[-_]/i.test(clean) ||
+      ['mp4', 'webm', 'mov'].includes(ext);
+    const isSlide =
+      dbType === 'gif' ||
+      /^(final_gif|slide)[-_]/i.test(clean) ||
+      (ext === 'gif' && !isRaw);
 
-    if (isLive) urlsLive.push({ file: clean, url: withImageKitOriginal(fullUrl), ext: ext || 'mp4' });
-    else if (isSlide) urlsGif.push({ file: clean, url: withImageKitOriginal(fullUrl), ext: 'gif' });
-    else if (isRaw) urlsRaw.push({ file: clean, url: withImageKitOriginal(fullUrl), ext: ext || 'jpg' });
-    else urlsFrame.push({ file: clean, url: withImageKitOriginal(fullUrl), ext: ext || 'jpg' });
+    const origUrl = withImageKitOriginal(fullUrl, allowedHostnames);
+
+    if (isLive) urlsLive.push({ file: clean, url: origUrl, ext: ext || 'mp4' });
+    else if (isSlide) urlsGif.push({ file: clean, url: origUrl, ext: 'gif' });
+    else if (isRaw) urlsRaw.push({ file: clean, url: origUrl, ext: ext || 'jpg' });
+    else urlsFrame.push({ file: clean, url: origUrl, ext: ext || 'jpg' });
   }
 
   const isUploadComplete = urlsRaw.length > 0 && urlsFrame.length > 0;
-  return { oid, filesEncoded, filenames, urlsFrame, urlsLive, urlsGif, urlsRaw, isUploadComplete, isNewspaperHint };
+  return {
+    oid,
+    filesEncoded,
+    filenames: cleanFilenames,
+    urlsFrame,
+    urlsLive,
+    urlsGif,
+    urlsRaw,
+    isUploadComplete,
+    isNewspaperHint,
+    allowedHostnames,
+  };
 }
 
 exports.renderDownloadPage = async (req, res) => {
@@ -128,10 +184,11 @@ exports.renderDownloadPage = async (req, res) => {
         id: `frame_${idx}`,
         cat: 'frame',
         type: 'image',
+        filename: item.file,
         badge: idx === 0 ? 'FRAME UTAMA' : `FRAME #${idx + 1}`,
         thumbLabel: `Frame ${idx + 1}`,
         caption: 'Cakep banget! Ini dia hasil foto kolase frame kamu.',
-        previewUrl: withImageKitPreview(item.url, true),
+        previewUrl: withImageKitPreview(item.url, true, session.allowedHostnames),
         url: item.url,
         alias_name: `Photobinc-Frame-${nowTs}-${idx + 1}.jpg`,
         accent: '#facc15',
@@ -143,6 +200,7 @@ exports.renderDownloadPage = async (req, res) => {
         id: `live_${idx}`,
         cat: 'live',
         type: 'video',
+        filename: item.file,
         badge: session.urlsLive.length > 1 ? `LIVE PHOTO #${idx + 1}` : 'LIVE PHOTO',
         thumbLabel: `Live ${idx + 1}`,
         caption: 'Momen di balik layar sebelum jepretan! Ala-ala Apple Live Photo.',
@@ -158,6 +216,7 @@ exports.renderDownloadPage = async (req, res) => {
         id: `gif_${idx}`,
         cat: 'gif',
         type: 'gif',
+        filename: item.file,
         badge: 'ANIMASI GIF',
         thumbLabel: `GIF ${idx + 1}`,
         caption: 'Gerak-gerak gemes! Klik "Video IG" biar tajam saat upload ke IG Story.',
@@ -173,10 +232,11 @@ exports.renderDownloadPage = async (req, res) => {
         id: `raw_${idx}`,
         cat: 'raw',
         type: 'image',
+        filename: item.file,
         badge: `MENTAHAN ${idx + 1}`,
         thumbLabel: `Pose ${idx + 1}`,
         caption: 'Foto Full HD asli tanpa bingkai buat diedit suka-suka.',
-        previewUrl: withImageKitPreview(item.url, true),
+        previewUrl: withImageKitPreview(item.url, true, session.allowedHostnames),
         url: item.url,
         alias_name: `Photobinc-RAW-${idx + 1}-${nowTs}.jpg`,
         accent: '#38bdf8',
@@ -233,17 +293,18 @@ exports.renderLiveArPage = async (req, res) => {
   }
 };
 
-// FORCE DOWNLOAD FULL RESOLUSI (ANTI-PREVIEW & ANTI-CORS)
+// FORCE DOWNLOAD FULL RESOLUSI (ANTI-PREVIEW, ANTI-CORS & SUPPORT MULTI-ACCOUNT IMAGEKIT)
 exports.proxyDownload = async (req, res) => {
   try {
     const rawUrl = String(req.query.url || '').trim();
     const aliasName = String(req.query.name || 'photobinc-media').replace(/[^a-zA-Z0-9._-]/g, '_');
 
-    if (!rawUrl || !isAllowedMediaUrl(rawUrl)) {
+    if (!rawUrl || !(await isAllowedMediaUrl(rawUrl))) {
       return res.status(400).send('URL media tidak valid.');
     }
 
-    const origUrl = withImageKitOriginal(rawUrl);
+    const { hostnames: allowedHostnames } = await getAllowedImageKitMeta();
+    const origUrl = withImageKitOriginal(rawUrl, allowedHostnames);
     const attachmentUrlObj = new URL(origUrl);
     attachmentUrlObj.searchParams.set('ik-attachment', 'true');
     const directAttachmentUrl = attachmentUrlObj.toString();
@@ -283,20 +344,22 @@ exports.proxyDownload = async (req, res) => {
   }
 };
 
-// SAME-ORIGIN PROXY GAMBAR TARGET WEBAR & THUMBNAIL OPERATOR (100% BEBAS CORS)
+// SAME-ORIGIN PROXY GAMBAR TARGET WEBAR & THUMBNAIL OPERATOR (100% BEBAS CORS & MULTI-ACCOUNT IMAGEKIT)
 exports.proxyArTarget = async (req, res) => {
   try {
     const rawUrl = String(req.query.url || '').trim();
     const maxW = Math.min(1200, Math.max(300, parseInt(req.query.w || '900', 10) || 900));
 
-    if (!rawUrl || !isAllowedMediaUrl(rawUrl)) {
+    if (!rawUrl || !(await isAllowedMediaUrl(rawUrl))) {
       return res.status(400).send('URL gambar tidak valid.');
     }
+
+    const { hostnames: allowedHostnames } = await getAllowedImageKitMeta();
 
     let fetchUrl = rawUrl;
     try {
       const u = new URL(rawUrl);
-      if (u.hostname === 'ik.imagekit.io') {
+      if (isImageKitHost(u.hostname, allowedHostnames)) {
         u.searchParams.set('tr', `w-${maxW},q-90,f-jpg`);
         fetchUrl = u.toString();
       }
@@ -304,7 +367,7 @@ exports.proxyArTarget = async (req, res) => {
 
     let imgRes = await fetch(fetchUrl);
     if (!imgRes.ok) {
-      imgRes = await fetch(withImageKitOriginal(rawUrl));
+      imgRes = await fetch(withImageKitOriginal(rawUrl, allowedHostnames));
     }
     if (!imgRes.ok) {
       return res.status(imgRes.status).send('Gagal mengambil gambar dari storage.');
