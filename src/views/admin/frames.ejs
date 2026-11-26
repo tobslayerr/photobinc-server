@@ -11,7 +11,7 @@
   .ve-list { display: flex; flex-direction: column; gap: 18px; }
   .visual-editor-container {
     background: #fff; border: 1px solid #cbd5e1; border-radius: 10px; padding: 16px;
-    display: flex; gap: 20px; flex-wrap: wrap; transition: opacity 0.2s, filter 0.2s;
+    display: flex; gap: 20px; flex-wrap: wrap; transition: opacity 0.2s, filter 0.2s, box-shadow 0.25s;
   }
   .ve-left { flex: 0 0 340px; max-width: 100%; }
   .ve-right { flex: 1; min-width: 300px; }
@@ -26,10 +26,170 @@
   .box-ctrl { position: absolute; top: 4px; right: 4px; display: flex; gap: 4px; opacity: 0; transition: 0.15s; }
   .ve-box:hover .box-ctrl, .ve-box:focus .box-ctrl { opacity: 1 !important; z-index: 101; }
   .coord-card { background: #f1f5f9; padding: 8px; border-radius: 6px; font-size: 11.5px; margin-bottom: 8px; }
-  .coord-card input { width: 58px; padding: 4px; border: 1px solid #cbd5e1; border-radius: 4px; margin: 2px 4px 2px 2px; font-size: 12px; }
+  .coord-card input { width: 70px; padding: 4px 6px; border: 1px solid #cbd5e1; border-radius: 4px; margin: 2px 4px 2px 2px; font-size: 12px; }
   .sticky-save {
     position: fixed; bottom: 18px; right: 24px; z-index: 300;
     box-shadow: 0 10px 25px rgba(37, 99, 235, 0.35); padding: 14px 24px; font-size: 15px; border-radius: 99px;
+  }
+
+  /* Quick-Sort Drag & Drop Board */
+  .qs-board {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 18px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+  .qs-board-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed #cbd5e1;
+  }
+  .qs-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    min-height: 110px;
+  }
+  .qs-card {
+    width: 112px;
+    background: #f8fafc;
+    border: 2px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 6px;
+    cursor: grab;
+    user-select: none;
+    position: relative;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.2s ease;
+    box-sizing: border-box;
+  }
+  .qs-card:hover {
+    border-color: #3b82f6;
+    box-shadow: 0 4px 10px rgba(59, 130, 246, 0.18);
+    transform: translateY(-2px);
+  }
+  .qs-card:active { cursor: grabbing; }
+  .qs-card.is-inactive { opacity: 0.48; filter: grayscale(100%); }
+  .qs-card-placeholder {
+    width: 112px;
+    height: 158px;
+    border: 2px dashed #ec4899;
+    background: rgba(236, 72, 153, 0.08);
+    border-radius: 8px;
+    box-sizing: border-box;
+  }
+  .qs-card-placeholder.is-news {
+    border-color: #eab308;
+    background: rgba(250, 204, 21, 0.12);
+  }
+  .qs-order-badge {
+    position: absolute;
+    top: -8px;
+    left: -8px;
+    background: #1e3a8a;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 2px 7px;
+    border-radius: 999px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    z-index: 2;
+  }
+  .qs-thumb-wrap {
+    width: 100%;
+    height: 98px;
+    background: #e2e8f0;
+    border-radius: 5px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 6px;
+  }
+  .qs-thumb-wrap img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+    pointer-events: none;
+  }
+  .qs-empty-label { font-size: 11px; color: #64748b; font-weight: 600; }
+  .qs-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: #1e293b;
+    gap: 4px;
+  }
+  .qs-jump-btn {
+    background: #e2e8f0;
+    border: none;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #0f172a;
+    cursor: pointer;
+  }
+  .qs-jump-btn:hover { background: #3b82f6; color: #fff; }
+  .qs-dirty-hint {
+    display: none;
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #f59e0b;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  /* Drag Handle & Header pada Kartu Editor Besar */
+  .frame-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .frame-drag-handle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #334155;
+    cursor: grab;
+    user-select: none;
+  }
+  .frame-drag-handle:hover { background: #e2e8f0; border-color: #94a3b8; }
+  .frame-drag-handle:active { cursor: grabbing; }
+  .frame-order-pill {
+    background: #1e3a8a;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 999px;
+  }
+  .editor-card-placeholder {
+    width: 100%;
+    height: 120px;
+    border: 3px dashed #3b82f6;
+    background: rgba(59, 130, 246, 0.08);
+    border-radius: 10px;
+    box-sizing: border-box;
   }
 </style>
 
@@ -40,10 +200,10 @@
 <div class="box-card" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; background:#f8fafc;">
   <div>
     <h3 style="margin:0 0 4px; font-size:16px;">Export & Import Frame (Kompatibel 100% JSON WordPress)</h3>
-    <p style="margin:0; font-size:13px; color:#475569;">Import file <code>photobooth-frame-settings-*.json</code> langsung dari WordPress atau export kembali ke WordPress.</p>
+    <p style="margin:0; font-size:13px; color:#475569;">Import file <code>photobooth-frame-settings-*.json</code> langsung dari WordPress atau export kembali ke WordPress (mendukung 18 Strip, 4 News & koordinat desimal).</p>
   </div>
   <div style="display:flex; gap:14px; align-items:center; flex-wrap:wrap;">
-    <a href="/admin/frames/export-json" class="pb-btn pb-btn-green"><i class="ri-download-2-line"></i> Export JSON</a>
+    <a id="ef_btn_export_json" href="/admin/frames/export-json" class="pb-btn pb-btn-green"><i class="ri-download-2-line"></i> Export JSON</a>
     <form method="POST" action="/admin/frames/import-json" enctype="multipart/form-data" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:0; background:#fff; padding:8px 12px; border-radius:8px; border:1px solid #cbd5e1;">
       <input type="file" name="import_file" accept=".json" required style="font-size:12.5px;" />
       <label style="font-size:12px; font-weight:700; display:flex; align-items:center; gap:4px; cursor:pointer;">
@@ -95,13 +255,56 @@
     </div>
   </div>
 
-  <!-- 18 FRAME CLASSIC STRIP -->
+  <!-- =================================================================== -->
+  <!-- 2. CLASSIC STRIP (18 PILIHAN FRAME + QUICK-SORT DRAG & DROP)        -->
+  <!-- =================================================================== -->
   <div class="sec-bar" style="background:#ec4899; color:#fff;">2. Pengaturan CLASSIC STRIP (18 Pilihan Frame — 6 Kotak)</div>
-  <div class="ve-list">
-    <% stripFrames.forEach(function(f) { const i = f.original_id; %>
-      <div class="visual-editor-container" data-prefix="strip_f<%= i %>" style="border-left:5px solid #ec4899;">
+  <div style="margin-bottom:14px; padding:10px 14px; background:#fef08a; color:#854d0e; font-size:13px; border-radius:8px; font-weight:600;">
+    <b>PENTING:</b> Seluruh format Strip diset untuk <b>6 Pose (6 Kotak)</b>. Gunakan <b>Papan Drag & Drop</b> di bawah untuk mengubah urutan tampil di aplikasi (Kiri = Urutan #1). Koordinat <b>X, Y, W, H</b> mendukung angka desimal (contoh: <code>1453.7</code>).
+  </div>
+
+  <!-- QUICK-SORT BOARD STRIP -->
+  <div class="qs-board" data-group="strip">
+    <div class="qs-board-header">
+      <div>
+        <strong style="font-size:14px; color:#0f172a;">Drag & Drop Urutan Tampil Classic Strip</strong>
+        <div style="font-size:12px; color:#64748b;">Tarik & lepaskan kartu frame ke posisi yang diinginkan. Klik <b>Simpan Urutan Cepat</b> atau tombol simpan utama di bawah.</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <span class="qs-dirty-hint">Urutan berubah — belum disimpan</span>
+        <button type="button" class="pb-btn pb-btn-dark btn-quick-save-order" data-group="strip" style="background:#ec4899; border-color:#db2777;">Simpan Urutan Cepat</button>
+      </div>
+    </div>
+    <div class="qs-grid qs-sortable-strip" data-group="strip">
+      <% stripFrames.forEach(function(f, idx) { const i = f.original_id; %>
+        <div class="qs-card <%= f.active ? '' : 'is-inactive' %>" data-prefix="strip_f<%= i %>" data-orig-id="<%= i %>">
+          <span class="qs-order-badge">#<%= idx + 1 %></span>
+          <div class="qs-thumb-wrap">
+            <% if (f.url) { %>
+              <img src="<%= f.url %>" alt="Strip <%= i %>" />
+            <% } else { %>
+              <span class="qs-empty-label">Kosong</span>
+            <% } %>
+          </div>
+          <div class="qs-meta">
+            <span>Strip <%= i %></span>
+            <button type="button" class="qs-jump-btn" data-target-card="card_strip_f<%= i %>" title="Loncat ke Editor Frame ini">Edit</button>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  </div>
+
+  <!-- DAFTAR EDITOR STRIP (SORTABLE & TERSINKRON DENGAN QUICK-SORT) -->
+  <div id="frames-list-strip" class="ve-list frames-sortable-list" data-group="strip">
+    <% stripFrames.forEach(function(f, idx) { const i = f.original_id; %>
+      <div id="card_strip_f<%= i %>" class="visual-editor-container" data-prefix="strip_f<%= i %>" data-group="strip" data-orig-id="<%= i %>" style="border-left:5px solid #ec4899;">
         <div class="ve-left">
-          <h4 style="margin:0 0 8px;">PREVIEW STRIP <%= i %></h4>
+          <div class="frame-card-header">
+            <span class="frame-drag-handle" title="Tarik untuk mengubah urutan frame ini">⋮⋮ Geser</span>
+            <h4 style="margin:0; flex:1;">STRIP <%= i %></h4>
+            <span class="frame-order-pill">Urutan #<%= idx + 1 %></span>
+          </div>
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; background:#f1f5f9; padding:5px 8px; border-radius:6px;">
             <span style="font-size:11.5px; font-weight:700;">Zoom:</span>
             <div style="display:flex; gap:4px; align-items:center;">
@@ -128,12 +331,12 @@
               <% } %>
             </div>
           </div>
-          <p style="font-size:11px; color:#64748b; margin:6px 0 0;">Drag di area kosong untuk buat kotak. Tekan <b>D</b> duplikat, <b>Del</b> hapus, Panah untuk geser 1px.</p>
+          <p style="font-size:11px; color:#64748b; margin:6px 0 0;">Drag di area kosong untuk buat kotak. Tekan <b>D</b> duplikat, <b>Del</b> hapus, Panah untuk geser (<b>Shift</b> = 10px, <b>Alt</b> = 0.1px).</p>
         </div>
 
         <div class="ve-right">
           <div style="display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; align-items:center;">
-            <input type="text" id="strip_f<%= i %>_url" name="strip_f<%= i %>_url" value="<%= f.url %>" style="flex:1; min-width:200px; padding:8px; border:1px solid #cbd5e1; border-radius:6px;" placeholder="URL Gambar PNG Frame (ImageKit)" />
+            <input type="text" id="strip_f<%= i %>_url" name="strip_f<%= i %>_url" value="<%= f.url %>" class="frame-url-input" style="flex:1; min-width:200px; padding:8px; border:1px solid #cbd5e1; border-radius:6px;" placeholder="URL Gambar PNG Frame (ImageKit)" />
             <button type="button" class="pb-btn pb-btn-dark pb-ik-upload-btn" data-target="strip_f<%= i %>_url" data-folder="/photobooth/frames">Upload PNG</button>
             <button type="button" class="pb-btn pb-btn-yellow btn-match-dim">Sesuaikan</button>
             <button type="button" class="pb-btn pb-btn-cyan btn-auto-detect">Auto-Detect</button>
@@ -144,11 +347,11 @@
             <label style="font-weight:800; color:#16a34a; cursor:pointer;">
               <input type="checkbox" class="frame-active-cb" name="strip_f<%= i %>_active" value="1" <%= f.active ? 'checked' : '' %> /> Aktifkan Frame
             </label>
-            <div><strong>Urutan:</strong> <input type="number" name="strip_f<%= i %>_order" value="<%= f.order %>" style="width:60px; padding:4px;" /></div>
+            <div><strong>Urutan:</strong> <input type="number" class="frame-order-input" name="strip_f<%= i %>_order" value="<%= idx + 1 %>" style="width:60px; padding:4px;" /></div>
             <div>
               <strong>Canvas:</strong>
-              W <input type="number" name="strip_f<%= i %>_w" value="<%= f.w %>" class="canvas-w" style="width:72px; padding:4px;" />
-              H <input type="number" name="strip_f<%= i %>_h" value="<%= f.h %>" class="canvas-h" style="width:72px; padding:4px;" />
+              W <input type="number" step="any" name="strip_f<%= i %>_w" value="<%= f.w %>" class="canvas-w" style="width:76px; padding:4px;" />
+              H <input type="number" step="any" name="strip_f<%= i %>_h" value="<%= f.h %>" class="canvas-h" style="width:76px; padding:4px;" />
             </div>
           </div>
 
@@ -157,10 +360,10 @@
               <% for (let p = 1; p <= 3; p++) { const sl = f.slots['p' + p]; %>
                 <div class="coord-card">
                   <strong>Kotak P<%= p %>:</strong><br/>
-                  X<input type="number" name="strip_f<%= i %>_p<%= p %>_x" value="<%= sl.x %>" class="pose-x-<%= p %>" />
-                  Y<input type="number" name="strip_f<%= i %>_p<%= p %>_y" value="<%= sl.y %>" class="pose-y-<%= p %>" /><br/>
-                  W<input type="number" name="strip_f<%= i %>_p<%= p %>_w" value="<%= sl.w %>" class="pose-w-<%= p %>" />
-                  H<input type="number" name="strip_f<%= i %>_p<%= p %>_h" value="<%= sl.h %>" class="pose-h-<%= p %>" />
+                  X<input type="number" step="any" name="strip_f<%= i %>_p<%= p %>_x" value="<%= sl.x %>" class="pose-x-<%= p %>" />
+                  Y<input type="number" step="any" name="strip_f<%= i %>_p<%= p %>_y" value="<%= sl.y %>" class="pose-y-<%= p %>" /><br/>
+                  W<input type="number" step="any" name="strip_f<%= i %>_p<%= p %>_w" value="<%= sl.w %>" class="pose-w-<%= p %>" />
+                  H<input type="number" step="any" name="strip_f<%= i %>_p<%= p %>_h" value="<%= sl.h %>" class="pose-h-<%= p %>" />
                 </div>
               <% } %>
             </div>
@@ -168,10 +371,10 @@
               <% for (let p = 4; p <= 6; p++) { const sl = f.slots['p' + p]; %>
                 <div class="coord-card">
                   <strong>Kotak P<%= p %>:</strong><br/>
-                  X<input type="number" name="strip_f<%= i %>_p<%= p %>_x" value="<%= sl.x %>" class="pose-x-<%= p %>" />
-                  Y<input type="number" name="strip_f<%= i %>_p<%= p %>_y" value="<%= sl.y %>" class="pose-y-<%= p %>" /><br/>
-                  W<input type="number" name="strip_f<%= i %>_p<%= p %>_w" value="<%= sl.w %>" class="pose-w-<%= p %>" />
-                  H<input type="number" name="strip_f<%= i %>_p<%= p %>_h" value="<%= sl.h %>" class="pose-h-<%= p %>" />
+                  X<input type="number" step="any" name="strip_f<%= i %>_p<%= p %>_x" value="<%= sl.x %>" class="pose-x-<%= p %>" />
+                  Y<input type="number" step="any" name="strip_f<%= i %>_p<%= p %>_y" value="<%= sl.y %>" class="pose-y-<%= p %>" /><br/>
+                  W<input type="number" step="any" name="strip_f<%= i %>_p<%= p %>_w" value="<%= sl.w %>" class="pose-w-<%= p %>" />
+                  H<input type="number" step="any" name="strip_f<%= i %>_p<%= p %>_h" value="<%= sl.h %>" class="pose-h-<%= p %>" />
                 </div>
               <% } %>
             </div>
@@ -181,13 +384,53 @@
     <% }) %>
   </div>
 
-  <!-- 3 FRAME NEWSPAPER -->
-  <div class="sec-bar" style="background:#facc15; color:#111;">3. Pengaturan NEWSPAPER (3 Pilihan Frame — Cetak & Digital)</div>
-  <div class="ve-list">
-    <% newsFrames.forEach(function(f) { const i = f.original_id; %>
-      <div class="visual-editor-container" data-prefix="news_f<%= i %>" style="border-left:5px solid #facc15;">
+  <!-- =================================================================== -->
+  <!-- 3. NEWSPAPER (4 PILIHAN FRAME + QUICK-SORT DRAG & DROP)             -->
+  <!-- =================================================================== -->
+  <div class="sec-bar" style="background:#facc15; color:#111;">3. Pengaturan NEWSPAPER (4 Pilihan Frame — Cetak & Digital)</div>
+
+  <!-- QUICK-SORT BOARD NEWS -->
+  <div class="qs-board" data-group="news">
+    <div class="qs-board-header">
+      <div>
+        <strong style="font-size:14px; color:#0f172a;">Drag & Drop Urutan Tampil Newspaper</strong>
+        <div style="font-size:12px; color:#64748b;">Tarik & lepaskan kartu frame ke posisi yang diinginkan (Kiri = Urutan #1 di aplikasi).</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <span class="qs-dirty-hint">Urutan berubah — belum disimpan</span>
+        <button type="button" class="pb-btn pb-btn-yellow btn-quick-save-order" data-group="news">Simpan Urutan Cepat</button>
+      </div>
+    </div>
+    <div class="qs-grid qs-sortable-news" data-group="news">
+      <% newsFrames.forEach(function(f, idx) { const i = f.original_id; %>
+        <div class="qs-card <%= f.active ? '' : 'is-inactive' %>" data-prefix="news_f<%= i %>" data-orig-id="<%= i %>">
+          <span class="qs-order-badge" style="background:#ca8a04;">#<%= idx + 1 %></span>
+          <div class="qs-thumb-wrap">
+            <% if (f.url) { %>
+              <img src="<%= f.url %>" alt="News <%= i %>" />
+            <% } else { %>
+              <span class="qs-empty-label">Kosong</span>
+            <% } %>
+          </div>
+          <div class="qs-meta">
+            <span>News <%= i %></span>
+            <button type="button" class="qs-jump-btn" data-target-card="card_news_f<%= i %>" title="Loncat ke Editor Frame ini">Edit</button>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  </div>
+
+  <!-- DAFTAR EDITOR NEWS (SORTABLE & TERSINKRON DENGAN QUICK-SORT) -->
+  <div id="frames-list-news" class="ve-list frames-sortable-list" data-group="news">
+    <% newsFrames.forEach(function(f, idx) { const i = f.original_id; %>
+      <div id="card_news_f<%= i %>" class="visual-editor-container" data-prefix="news_f<%= i %>" data-group="news" data-orig-id="<%= i %>" style="border-left:5px solid #facc15;">
         <div class="ve-left">
-          <h4 style="margin:0 0 8px;">PREVIEW NEWS <%= i %></h4>
+          <div class="frame-card-header">
+            <span class="frame-drag-handle" title="Tarik untuk mengubah urutan frame ini">⋮⋮ Geser</span>
+            <h4 style="margin:0; flex:1;">NEWS <%= i %></h4>
+            <span class="frame-order-pill" style="background:#ca8a04;">Urutan #<%= idx + 1 %></span>
+          </div>
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; background:#f1f5f9; padding:5px 8px; border-radius:6px;">
             <span style="font-size:11.5px; font-weight:700;">Zoom:</span>
             <div style="display:flex; gap:4px; align-items:center;">
@@ -214,11 +457,12 @@
               <% } %>
             </div>
           </div>
+          <p style="font-size:11px; color:#64748b; margin:6px 0 0;">Drag di area kosong untuk buat kotak. Tekan <b>D</b> duplikat, <b>Del</b> hapus, Panah untuk geser (<b>Shift</b> = 10px, <b>Alt</b> = 0.1px).</p>
         </div>
 
         <div class="ve-right">
           <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap; align-items:center;">
-            <input type="text" id="news_f<%= i %>_url" name="news_f<%= i %>_url" value="<%= f.url %>" style="flex:1; min-width:200px; padding:8px; border:1px solid #cbd5e1; border-radius:6px;" placeholder="URL Frame CETAK (Putih)" />
+            <input type="text" id="news_f<%= i %>_url" name="news_f<%= i %>_url" value="<%= f.url %>" class="frame-url-input" style="flex:1; min-width:200px; padding:8px; border:1px solid #cbd5e1; border-radius:6px;" placeholder="URL Frame CETAK (Putih)" />
             <button type="button" class="pb-btn pb-btn-dark pb-ik-upload-btn" data-target="news_f<%= i %>_url" data-folder="/photobooth/frames">Upload Cetak</button>
             <button type="button" class="pb-btn pb-btn-yellow btn-match-dim">Sesuaikan</button>
             <button type="button" class="pb-btn pb-btn-cyan btn-auto-detect">Auto-Detect</button>
@@ -233,21 +477,21 @@
             <label style="font-weight:800; color:#16a34a; cursor:pointer;">
               <input type="checkbox" class="frame-active-cb" name="news_f<%= i %>_active" value="1" <%= f.active ? 'checked' : '' %> /> Aktifkan Frame
             </label>
-            <div><strong>Urutan:</strong> <input type="number" name="news_f<%= i %>_order" value="<%= f.order %>" style="width:60px; padding:4px;" /></div>
+            <div><strong>Urutan:</strong> <input type="number" class="frame-order-input" name="news_f<%= i %>_order" value="<%= idx + 1 %>" style="width:60px; padding:4px;" /></div>
             <div>
               <strong>Canvas:</strong>
-              W <input type="number" name="news_f<%= i %>_w" value="<%= f.w %>" class="canvas-w" style="width:72px; padding:4px;" />
-              H <input type="number" name="news_f<%= i %>_h" value="<%= f.h %>" class="canvas-h" style="width:72px; padding:4px;" />
+              W <input type="number" step="any" name="news_f<%= i %>_w" value="<%= f.w %>" class="canvas-w" style="width:76px; padding:4px;" />
+              H <input type="number" step="any" name="news_f<%= i %>_h" value="<%= f.h %>" class="canvas-h" style="width:76px; padding:4px;" />
             </div>
           </div>
 
           <% for (let p = 1; p <= 2; p++) { const sl = f.slots['p' + p]; %>
             <div class="coord-card">
               <strong>Kotak Foto <%= p %>:</strong><br/>
-              X <input type="number" name="news_f<%= i %>_p<%= p %>_x" value="<%= sl.x %>" class="pose-x-<%= p %>" />
-              Y <input type="number" name="news_f<%= i %>_p<%= p %>_y" value="<%= sl.y %>" class="pose-y-<%= p %>" />
-              W <input type="number" name="news_f<%= i %>_p<%= p %>_w" value="<%= sl.w %>" class="pose-w-<%= p %>" />
-              H <input type="number" name="news_f<%= i %>_p<%= p %>_h" value="<%= sl.h %>" class="pose-h-<%= p %>" />
+              X <input type="number" step="any" name="news_f<%= i %>_p<%= p %>_x" value="<%= sl.x %>" class="pose-x-<%= p %>" />
+              Y <input type="number" step="any" name="news_f<%= i %>_p<%= p %>_y" value="<%= sl.y %>" class="pose-y-<%= p %>" />
+              W <input type="number" step="any" name="news_f<%= i %>_p<%= p %>_w" value="<%= sl.w %>" class="pose-w-<%= p %>" />
+              H <input type="number" step="any" name="news_f<%= i %>_p<%= p %>_h" value="<%= sl.h %>" class="pose-h-<%= p %>" />
             </div>
           <% } %>
         </div>
@@ -259,4 +503,178 @@
 </form>
 
 <script src="/js/visual-editor.js"></script>
+<script>
+  jQuery(function ($) {
+    // Tambahkan timestamp lokal pada link Export JSON
+    var $expBtn = $('#ef_btn_export_json');
+    if ($expBtn.length) {
+      var now = new Date();
+      var pad = function (n) { return String(n).padStart(2, '0'); };
+      var ts = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate()) + '_' +
+               pad(now.getHours()) + '-' + pad(now.getMinutes()) + '-' + pad(now.getSeconds());
+      $expBtn.attr('href', '/admin/frames/export-json?js_ts=' + ts);
+    }
+
+    // =========================================================================
+    // DRAG & DROP URUTAN FRAME (SINKRON 2 ARAH: QUICK-SORT <-> EDITOR CARDS)
+    // =========================================================================
+    function syncOrderFromQuickSort(group) {
+      var $qsGrid = $('.qs-sortable-' + group);
+      var $editorList = $('#frames-list-' + group);
+      var $board = $('.qs-board[data-group="' + group + '"]');
+
+      $qsGrid.find('.qs-card').each(function (index) {
+        var orderNum = index + 1;
+        var prefix = $(this).data('prefix');
+        $(this).find('.qs-order-badge').text('#' + orderNum);
+
+        var $card = $editorList.find('.visual-editor-container[data-prefix="' + prefix + '"]');
+        if ($card.length) {
+          $editorList.append($card);
+          $card.find('.frame-order-input').val(orderNum);
+          $card.find('.frame-order-pill').text('Urutan #' + orderNum);
+        }
+      });
+      $board.find('.qs-dirty-hint').fadeIn(150);
+    }
+
+    function syncOrderFromEditorList(group) {
+      var $qsGrid = $('.qs-sortable-' + group);
+      var $editorList = $('#frames-list-' + group);
+      var $board = $('.qs-board[data-group="' + group + '"]');
+
+      $editorList.find('.visual-editor-container').each(function (index) {
+        var orderNum = index + 1;
+        var prefix = $(this).data('prefix');
+        $(this).find('.frame-order-input').val(orderNum);
+        $(this).find('.frame-order-pill').text('Urutan #' + orderNum);
+
+        var $mini = $qsGrid.find('.qs-card[data-prefix="' + prefix + '"]');
+        if ($mini.length) {
+          $qsGrid.append($mini);
+          $mini.find('.qs-order-badge').text('#' + orderNum);
+        }
+      });
+      $board.find('.qs-dirty-hint').fadeIn(150);
+    }
+
+    function updateQuickSortCardVisual($container) {
+      var prefix = $container.data('prefix');
+      var $mini = $('.qs-card[data-prefix="' + prefix + '"]');
+      if (!$mini.length) return;
+
+      var isActive = $container.find('.frame-active-cb').is(':checked');
+      $mini.toggleClass('is-inactive', !isActive);
+
+      var imgUrl = ($container.find('.frame-url-input').val() || '').trim();
+      var $thumbWrap = $mini.find('.qs-thumb-wrap');
+      if (imgUrl) {
+        var $img = $thumbWrap.find('img');
+        if ($img.length) {
+          $img.attr('src', imgUrl);
+        } else {
+          $thumbWrap.html('<img src="' + $('<div>').text(imgUrl).html() + '" alt="" />');
+        }
+      } else {
+        $thumbWrap.html('<span class="qs-empty-label">Kosong</span>');
+      }
+    }
+
+    // Aktifkan jQuery UI Sortable pada Quick-Sort Board
+    $('.qs-sortable-strip').sortable({
+      items: '> .qs-card',
+      cancel: '.qs-jump-btn',
+      placeholder: 'qs-card-placeholder',
+      tolerance: 'pointer',
+      revert: 120,
+      update: function () { syncOrderFromQuickSort('strip'); },
+    });
+
+    $('.qs-sortable-news').sortable({
+      items: '> .qs-card',
+      cancel: '.qs-jump-btn',
+      placeholder: 'qs-card-placeholder is-news',
+      tolerance: 'pointer',
+      revert: 120,
+      update: function () { syncOrderFromQuickSort('news'); },
+    });
+
+    // Aktifkan Sortable pada Kartu Editor Besar (hanya via handle "⋮⋮ Geser")
+    $('.frames-sortable-list').sortable({
+      items: '> .visual-editor-container',
+      handle: '.frame-drag-handle',
+      placeholder: 'editor-card-placeholder',
+      tolerance: 'pointer',
+      revert: 150,
+      update: function () {
+        syncOrderFromEditorList($(this).data('group'));
+      },
+    });
+
+    // Simpan urutan langsung ke MongoDB via POST /admin/frames/reorder
+    $('.btn-quick-save-order').on('click', async function () {
+      var $btn = $(this);
+      var group = $btn.data('group');
+      var $board = $('.qs-board[data-group="' + group + '"]');
+      var orderedIds = [];
+
+      $('.qs-sortable-' + group + ' .qs-card').each(function () {
+        orderedIds.push(parseInt($(this).data('orig-id'), 10));
+      });
+
+      var oldText = $btn.text();
+      $btn.prop('disabled', true).text('Menyimpan...');
+      try {
+        var res = await fetch('/admin/frames/reorder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: group, order: orderedIds }),
+        });
+        var data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error((data && data.message) || 'Gagal menyimpan urutan');
+        }
+        $board.find('.qs-dirty-hint').fadeOut(150);
+        $btn.text('Urutan Tersimpan!');
+        setTimeout(function () { $btn.text(oldText).prop('disabled', false); }, 1600);
+      } catch (err) {
+        alert('Gagal menyimpan urutan: ' + err.message);
+        $btn.text(oldText).prop('disabled', false);
+      }
+    });
+
+    // Tombol "Edit" di kartu mini untuk scroll ke kartu editor
+    $(document).on('click', '.qs-jump-btn', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var $target = $('#' + $(this).data('target-card'));
+      if ($target.length) {
+        $('html, body').animate({ scrollTop: $target.offset().top - 40 }, 350);
+        $target.css('box-shadow', '0 0 0 4px rgba(59,130,246,0.45)');
+        setTimeout(function () { $target.css('box-shadow', ''); }, 1400);
+      }
+    });
+
+    // Sinkronkan status aktif & thumbnail kartu mini saat berubah di editor
+    $('.frame-active-cb').on('change', function () {
+      updateQuickSortCardVisual($(this).closest('.visual-editor-container'));
+    });
+
+    $('.frame-url-input').on('input change blur', function () {
+      updateQuickSortCardVisual($(this).closest('.visual-editor-container'));
+    });
+
+    // Pantau perubahan src gambar (misal selesai Direct Upload ke ImageKit oleh visual-editor.js)
+    if (typeof MutationObserver !== 'undefined') {
+      $('.visual-editor-container').each(function () {
+        var $container = $(this);
+        var imgEl = $container.find('.ve-img')[0];
+        if (!imgEl) return;
+        new MutationObserver(function () {
+          updateQuickSortCardVisual($container);
+        }).observe(imgEl, { attributes: true, attributeFilter: ['src'] });
+      });
+    }
+  });
+</script>
 <%- include('partials/footer') %>

@@ -2,14 +2,25 @@ const Setting = require('../models/Setting');
 const Frame = require('../models/Frame');
 const { mirrorUrlToImageKit } = require('./mediaService');
 
+const MAX_STRIP_SLOTS = (Frame.LIMITS && Frame.LIMITS.strip) || 18;
+const MAX_NEWS_SLOTS = (Frame.LIMITS && Frame.LIMITS.news) || 4;
+
 const toInt = (val, fallback = 0) => {
   const n = parseInt(val, 10);
   return Number.isFinite(n) ? n : fallback;
 };
 
+const toFloat = (val, fallback = 0) => {
+  if (val === '' || val === null || val === undefined) return fallback;
+  const normalized = String(val).trim().replace(',', '.');
+  const n = parseFloat(normalized);
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : fallback;
+};
+
 /**
  * Mengimpor file JSON export dari WordPress (photobooth-frame-settings-*.json)
- * ke MongoDB, opsional menyalin semua gambar PNG frame ke ImageKit.io
+ * ke MongoDB, opsional menyalin semua gambar PNG frame ke ImageKit.io.
+ * Mendukung koordinat/dimensi desimal (float), 18 Strip & 4 Newspaper.
  */
 async function importFromWordPressJson(data, { mirrorImages = true } = {}) {
   if (!data || typeof data !== 'object') {
@@ -34,7 +45,12 @@ async function importFromWordPressJson(data, { mirrorImages = true } = {}) {
   let mirroredImages = 0;
 
   // 2. Import 18 Frame Classic Strip
-  for (let i = 1; i <= 18; i++) {
+  for (let i = 1; i <= MAX_STRIP_SLOTS; i++) {
+    // Lewati hanya jika seluruh key slot ini benar-benar tidak ada di file JSON
+    if (data[`pb_strip_f${i}_url`] === undefined && data[`pb_strip_f${i}_w`] === undefined) {
+      continue;
+    }
+
     let url = String(data[`pb_strip_f${i}_url`] || '').trim();
     let urlFileId = '';
 
@@ -54,10 +70,10 @@ async function importFromWordPressJson(data, { mirrorImages = true } = {}) {
     const slots = {};
     for (let j = 1; j <= 6; j++) {
       slots[`p${j}`] = {
-        x: toInt(data[`pb_strip_f${i}_p${j}_x`], 0),
-        y: toInt(data[`pb_strip_f${i}_p${j}_y`], 0),
-        w: toInt(data[`pb_strip_f${i}_p${j}_w`], 0),
-        h: toInt(data[`pb_strip_f${i}_p${j}_h`], 0),
+        x: toFloat(data[`pb_strip_f${i}_p${j}_x`], 0),
+        y: toFloat(data[`pb_strip_f${i}_p${j}_y`], 0),
+        w: toFloat(data[`pb_strip_f${i}_p${j}_w`], 0),
+        h: toFloat(data[`pb_strip_f${i}_p${j}_h`], 0),
       };
     }
 
@@ -71,11 +87,11 @@ async function importFromWordPressJson(data, { mirrorImages = true } = {}) {
           type: 'strip',
           original_id: i,
           active,
-          order: toInt(data[`pb_strip_f${i}_order`], i),
+          order: Math.max(1, toInt(data[`pb_strip_f${i}_order`], i)),
           url,
           ...(urlFileId ? { url_file_id: urlFileId } : {}),
-          w: toInt(data[`pb_strip_f${i}_w`], 1200),
-          h: toInt(data[`pb_strip_f${i}_h`], 1800),
+          w: toFloat(data[`pb_strip_f${i}_w`], 1200),
+          h: toFloat(data[`pb_strip_f${i}_h`], 1800),
           shots: 3,
           slots,
         },
@@ -85,8 +101,13 @@ async function importFromWordPressJson(data, { mirrorImages = true } = {}) {
     if (url) importedStrips++;
   }
 
-  // 3. Import 3 Frame Newspaper
-  for (let i = 1; i <= 3; i++) {
+  // 3. Import 4 Frame Newspaper
+  for (let i = 1; i <= MAX_NEWS_SLOTS; i++) {
+    // Aman untuk import JSON lama (3 slot): slot ke-4 tidak tertimpa kosong jika key tidak ada
+    if (data[`pb_news_f${i}_url`] === undefined && data[`pb_news_f${i}_w`] === undefined) {
+      continue;
+    }
+
     let url = String(data[`pb_news_f${i}_url`] || '').trim();
     let digitalUrl = String(data[`pb_news_f${i}_digital_url`] || '').trim();
     let urlFileId = '';
@@ -121,10 +142,10 @@ async function importFromWordPressJson(data, { mirrorImages = true } = {}) {
     const slots = {};
     for (let j = 1; j <= 2; j++) {
       slots[`p${j}`] = {
-        x: toInt(data[`pb_news_f${i}_p${j}_x`], 0),
-        y: toInt(data[`pb_news_f${i}_p${j}_y`], 0),
-        w: toInt(data[`pb_news_f${i}_p${j}_w`], 0),
-        h: toInt(data[`pb_news_f${i}_p${j}_h`], 0),
+        x: toFloat(data[`pb_news_f${i}_p${j}_x`], 0),
+        y: toFloat(data[`pb_news_f${i}_p${j}_y`], 0),
+        w: toFloat(data[`pb_news_f${i}_p${j}_w`], 0),
+        h: toFloat(data[`pb_news_f${i}_p${j}_h`], 0),
       };
     }
 
@@ -138,13 +159,13 @@ async function importFromWordPressJson(data, { mirrorImages = true } = {}) {
           type: 'news',
           original_id: i,
           active,
-          order: toInt(data[`pb_news_f${i}_order`], i),
+          order: Math.max(1, toInt(data[`pb_news_f${i}_order`], i)),
           url,
           ...(urlFileId ? { url_file_id: urlFileId } : {}),
           digital_url: digitalUrl || url,
           ...(digitalFileId ? { digital_url_file_id: digitalFileId } : {}),
-          w: toInt(data[`pb_news_f${i}_w`], 1200),
-          h: toInt(data[`pb_news_f${i}_h`], 1600),
+          w: toFloat(data[`pb_news_f${i}_w`], 1200),
+          h: toFloat(data[`pb_news_f${i}_h`], 1600),
           shots: 2,
           slots,
         },
@@ -158,8 +179,8 @@ async function importFromWordPressJson(data, { mirrorImages = true } = {}) {
 }
 
 /**
- * Mengekspor seluruh Setting & Frame dari MongoDB kembali ke format JSON WordPress
- * sehingga bisa langsung di-import ulang ke WordPress kapan saja.
+ * Mengekspor seluruh Setting & Frame (18 Strip, 4 News, nilai desimal & urutan)
+ * dari MongoDB kembali ke format JSON WordPress.
  */
 async function exportToWordPressJson() {
   const setting = await Setting.getGlobal();
@@ -179,36 +200,36 @@ async function exportToWordPressJson() {
 
   const frameMap = new Map(frames.map((f) => [`${f.type}_${f.original_id}`, f]));
 
-  for (let i = 1; i <= 18; i++) {
+  for (let i = 1; i <= MAX_STRIP_SLOTS; i++) {
     const f = frameMap.get(`strip_${i}`);
     out[`pb_strip_f${i}_active`] = f ? (f.active ? '1' : '0') : '0';
     out[`pb_strip_f${i}_order`] = f ? String(f.order) : String(i);
     out[`pb_strip_f${i}_url`] = f ? f.url || '' : '';
-    out[`pb_strip_f${i}_w`] = f ? String(f.w) : '1200';
-    out[`pb_strip_f${i}_h`] = f ? String(f.h) : '1800';
+    out[`pb_strip_f${i}_w`] = f ? String(toFloat(f.w, 1200)) : '1200';
+    out[`pb_strip_f${i}_h`] = f ? String(toFloat(f.h, 1800)) : '1800';
     for (let j = 1; j <= 6; j++) {
       const p = f?.slots?.[`p${j}`] || {};
-      out[`pb_strip_f${i}_p${j}_x`] = String(p.x || 0);
-      out[`pb_strip_f${i}_p${j}_y`] = String(p.y || 0);
-      out[`pb_strip_f${i}_p${j}_w`] = String(p.w || 0);
-      out[`pb_strip_f${i}_p${j}_h`] = String(p.h || 0);
+      out[`pb_strip_f${i}_p${j}_x`] = String(toFloat(p.x, 0));
+      out[`pb_strip_f${i}_p${j}_y`] = String(toFloat(p.y, 0));
+      out[`pb_strip_f${i}_p${j}_w`] = String(toFloat(p.w, 0));
+      out[`pb_strip_f${i}_p${j}_h`] = String(toFloat(p.h, 0));
     }
   }
 
-  for (let i = 1; i <= 3; i++) {
+  for (let i = 1; i <= MAX_NEWS_SLOTS; i++) {
     const f = frameMap.get(`news_${i}`);
     out[`pb_news_f${i}_active`] = f ? (f.active ? '1' : '0') : '0';
     out[`pb_news_f${i}_order`] = f ? String(f.order) : String(i);
     out[`pb_news_f${i}_url`] = f ? f.url || '' : '';
     out[`pb_news_f${i}_digital_url`] = f ? f.digital_url || '' : '';
-    out[`pb_news_f${i}_w`] = f ? String(f.w) : '1200';
-    out[`pb_news_f${i}_h`] = f ? String(f.h) : '1600';
+    out[`pb_news_f${i}_w`] = f ? String(toFloat(f.w, 1200)) : '1200';
+    out[`pb_news_f${i}_h`] = f ? String(toFloat(f.h, 1600)) : '1600';
     for (let j = 1; j <= 2; j++) {
       const p = f?.slots?.[`p${j}`] || {};
-      out[`pb_news_f${i}_p${j}_x`] = String(p.x || 0);
-      out[`pb_news_f${i}_p${j}_y`] = String(p.y || 0);
-      out[`pb_news_f${i}_p${j}_w`] = String(p.w || 0);
-      out[`pb_news_f${i}_p${j}_h`] = String(p.h || 0);
+      out[`pb_news_f${i}_p${j}_x`] = String(toFloat(p.x, 0));
+      out[`pb_news_f${i}_p${j}_y`] = String(toFloat(p.y, 0));
+      out[`pb_news_f${i}_p${j}_w`] = String(toFloat(p.w, 0));
+      out[`pb_news_f${i}_p${j}_h`] = String(toFloat(p.h, 0));
     }
   }
 

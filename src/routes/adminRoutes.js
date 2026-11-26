@@ -19,9 +19,10 @@ router.get('/sales', ctrl.getSalesPage);
 router.get('/sales/export-excel', ctrl.exportSalesExcel);
 router.delete('/sales/:orderId', ctrl.deleteInvoice);
 
-// Frames, Harga & Visual Editor + Import/Export JSON WordPress
+// Frames, Harga & Visual Editor + Drag & Drop Reorder + Import/Export JSON WordPress
 router.get('/frames', ctrl.getFramesPage);
 router.post('/frames/save', ctrl.saveFramesAndSettings);
+router.post('/frames/reorder', ctrl.reorderFrames);
 router.get('/frames/export-json', ctrl.exportFramesJson);
 router.post('/frames/import-json', uploadJson.single('import_file'), ctrl.importFramesJson);
 

@@ -7,6 +7,7 @@ const settingSchema = new mongoose.Schema(
     midtrans_server_key: { type: String, default: '' },
     midtrans_client_key: { type: String, default: '' },
     use_midtrans: { type: String, enum: ['yes', 'no'], default: 'no' },
+    free_mode: { type: String, enum: ['yes', 'no'], default: 'no' }, // 'yes' = Semua sesi gratis & skip payment
     manual_qris_url: { type: String, default: '' },
     manual_qris_file_id: { type: String, default: '' },
 

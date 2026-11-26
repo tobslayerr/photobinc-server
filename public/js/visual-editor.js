@@ -1,4 +1,17 @@
 jQuery(document).ready(function ($) {
+  function roundDec(val, precision = 1) {
+    const num = Number(val);
+    if (!Number.isFinite(num)) return 0;
+    const factor = Math.pow(10, precision);
+    return Math.round(num * factor) / factor;
+  }
+
+  function parseDec(val, fallback = 0) {
+    if (val === '' || val === null || val === undefined) return fallback;
+    const num = parseFloat(String(val).trim().replace(',', '.'));
+    return Number.isFinite(num) ? num : fallback;
+  }
+
   // 1. Direct Browser Upload ke ImageKit.io (bebas batas 4.5 MB Vercel!)
   let activeUploadMeta = null;
   const fileInput = document.getElementById('ik-direct-file-input');
@@ -49,7 +62,7 @@ jQuery(document).ready(function ($) {
           throw new Error(upJson.message || 'Upload ImageKit gagal');
         }
 
-        targetInput.val(upJson.url);
+        targetInput.val(upJson.url).trigger('change');
         if (!isDigital) {
           const imgEl = container.find('.ve-img');
           imgEl.attr('src', upJson.url);
@@ -65,7 +78,7 @@ jQuery(document).ready(function ($) {
     });
   }
 
-  // 2. Toggle Visual Opacity Aktif/Nonaktif
+  // 2. Toggle Visual Opacity Aktif/Nonaktif & Sinkron URL Input Manual
   $('.frame-active-cb')
     .on('change', function () {
       if ($(this).is(':checked')) {
@@ -76,24 +89,38 @@ jQuery(document).ready(function ($) {
     })
     .trigger('change');
 
+  $('.frame-url-input').on('change blur', function () {
+    const container = $(this).closest('.visual-editor-container');
+    const val = ($(this).val() || '').trim();
+    const imgEl = container.find('.ve-img');
+    if (val) {
+      imgEl.attr('src', val);
+      imgEl.one('load', () => updateVisualEditor(container));
+    } else {
+      imgEl.removeAttr('src');
+    }
+    updateVisualEditor(container);
+  });
+
   // 3. Reset Frame
   $('.visual-editor-container').on('click', '.btn-reset-frame', function () {
     if (!confirm('Yakin kosongkan gambar dan reset seluruh koordinat frame ini menjadi 0?')) return;
     const container = $(this).closest('.visual-editor-container');
     container.find('input[type="text"]').val('');
     container.find('.ve-img').removeAttr('src');
+    container.find('.frame-url-input').trigger('change');
     container.find('.frame-active-cb').prop('checked', false).trigger('change');
-    const isNews = container.data('prefix').startsWith('news');
+    const isNews = String(container.data('prefix') || '').startsWith('news');
     container.find('.canvas-w').val(1200);
     container.find('.canvas-h').val(isNews ? 1600 : 1800);
     container.find('input[class^="pose-"]').val(0);
     updateVisualEditor(container);
   });
 
-  // 4. Render & Sync Kotak Koordinat
+  // 4. Render & Sync Kotak Koordinat (Mendukung Nilai Desimal)
   function updateVisualEditor(container) {
-    const canvasW = parseFloat(container.find('.canvas-w').val()) || 1200;
-    const canvasH = parseFloat(container.find('.canvas-h').val()) || 1800;
+    const canvasW = parseDec(container.find('.canvas-w').val(), 1200) || 1200;
+    const canvasH = parseDec(container.find('.canvas-h').val(), 1800) || 1800;
     const previewArea = container.find('.ve-canvas');
     const previewImg = container.find('.ve-img');
 
@@ -104,14 +131,14 @@ jQuery(document).ready(function ($) {
     }
 
     const scale = previewArea.width() / canvasW;
-    if (!scale || !isFinite(scale)) return;
+    if (!scale || !Number.isFinite(scale)) return;
 
     container.find('.ve-box').each(function () {
       const pose = $(this).data('pose');
-      const w = parseFloat(container.find('.pose-w-' + pose).val()) || 0;
-      const h = parseFloat(container.find('.pose-h-' + pose).val()) || 0;
-      const x = parseFloat(container.find('.pose-x-' + pose).val()) || 0;
-      const y = parseFloat(container.find('.pose-y-' + pose).val()) || 0;
+      const w = parseDec(container.find('.pose-w-' + pose).val(), 0);
+      const h = parseDec(container.find('.pose-h-' + pose).val(), 0);
+      const x = parseDec(container.find('.pose-x-' + pose).val(), 0);
+      const y = parseDec(container.find('.pose-y-' + pose).val(), 0);
       if (w > 0 && h > 0) {
         $(this).css({ display: 'flex', width: w * scale, height: h * scale, left: x * scale, top: y * scale });
       } else {
@@ -123,7 +150,7 @@ jQuery(document).ready(function ($) {
   function showGuideX(g, t) { g.css({ top: t + 'px' }).show(); }
   function showGuideY(g, l) { g.css({ left: l + 'px' }).show(); }
 
-  // 5. Draggable dengan Snap Alignment
+  // 5. Draggable dengan Snap Alignment (Output Koordinat Desimal 0.1px)
   $('.ve-box').draggable({
     containment: 'parent',
     start: function () { $(this).focus(); },
@@ -131,7 +158,10 @@ jQuery(document).ready(function ($) {
       const container = $(this).closest('.visual-editor-container');
       const canvas = container.find('.ve-canvas');
       const pose = $(this).data('pose');
-      const scale = canvas.width() / (parseFloat(container.find('.canvas-w').val()) || 1200);
+      const canvasW = parseDec(container.find('.canvas-w').val(), 1200) || 1200;
+      const scale = canvas.width() / canvasW;
+      if (!scale || !Number.isFinite(scale)) return;
+
       const guideX = container.find('.guide-x').hide();
       const guideY = container.find('.guide-y').hide();
       const snapDist = 6;
@@ -160,26 +190,27 @@ jQuery(document).ready(function ($) {
         }
       });
 
-      container.find('.pose-x-' + pose).val(Math.round(ui.position.left / scale));
-      container.find('.pose-y-' + pose).val(Math.round(ui.position.top / scale));
+      container.find('.pose-x-' + pose).val(roundDec(ui.position.left / scale, 1));
+      container.find('.pose-y-' + pose).val(roundDec(ui.position.top / scale, 1));
     },
     stop: function () {
       $(this).closest('.visual-editor-container').find('.guide-x, .guide-y').hide();
     },
   });
 
-  // 6. Duplikat, Hapus, & Keyboard Arrows
+  // 6. Duplikat, Hapus, & Keyboard Arrows (Shift = 10px, Alt = 0.1px, Normal = 1px)
   function duplicateBox(container, pose) {
-    const maxPoses = container.data('prefix').startsWith('news') ? 2 : 6;
+    const maxPoses = String(container.data('prefix') || '').startsWith('news') ? 2 : 6;
     let emptyPose = null;
     for (let p = 1; p <= maxPoses; p++) {
-      if ((parseFloat(container.find('.pose-w-' + p).val()) || 0) === 0) { emptyPose = p; break; }
+      if (parseDec(container.find('.pose-w-' + p).val(), 0) === 0) { emptyPose = p; break; }
     }
     if (!emptyPose) return alert('Kapasitas kotak penuh! Hapus salah satu kotak dulu.');
-    container.find('.pose-w-' + emptyPose).val(parseInt(container.find('.pose-w-' + pose).val(), 10) || 0);
-    container.find('.pose-h-' + emptyPose).val(parseInt(container.find('.pose-h-' + pose).val(), 10) || 0);
-    container.find('.pose-x-' + emptyPose).val((parseInt(container.find('.pose-x-' + pose).val(), 10) || 0) + 20);
-    container.find('.pose-y-' + emptyPose).val((parseInt(container.find('.pose-y-' + pose).val(), 10) || 0) + 20);
+
+    container.find('.pose-w-' + emptyPose).val(roundDec(parseDec(container.find('.pose-w-' + pose).val(), 0), 2));
+    container.find('.pose-h-' + emptyPose).val(roundDec(parseDec(container.find('.pose-h-' + pose).val(), 0), 2));
+    container.find('.pose-x-' + emptyPose).val(roundDec(parseDec(container.find('.pose-x-' + pose).val(), 0) + 20, 2));
+    container.find('.pose-y-' + emptyPose).val(roundDec(parseDec(container.find('.pose-y-' + pose).val(), 0) + 20, 2));
     updateVisualEditor(container);
     container.find('.ve-box-p' + emptyPose).focus();
   }
@@ -189,9 +220,9 @@ jQuery(document).ready(function ($) {
     const pose = $(this).data('pose');
     const inputX = container.find('.pose-x-' + pose);
     const inputY = container.find('.pose-y-' + pose);
-    let x = parseInt(inputX.val(), 10) || 0;
-    let y = parseInt(inputY.val(), 10) || 0;
-    const step = e.shiftKey ? 10 : 1;
+    let x = parseDec(inputX.val(), 0);
+    let y = parseDec(inputY.val(), 0);
+    const step = e.shiftKey ? 10 : (e.altKey ? 0.1 : 1);
     let changed = false;
 
     if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -206,10 +237,10 @@ jQuery(document).ready(function ($) {
       e.preventDefault();
       return;
     }
-    if (e.key === 'ArrowUp') { y -= step; changed = true; }
-    else if (e.key === 'ArrowDown') { y += step; changed = true; }
-    else if (e.key === 'ArrowLeft') { x -= step; changed = true; }
-    else if (e.key === 'ArrowRight') { x += step; changed = true; }
+    if (e.key === 'ArrowUp') { y = roundDec(y - step, 2); changed = true; }
+    else if (e.key === 'ArrowDown') { y = roundDec(y + step, 2); changed = true; }
+    else if (e.key === 'ArrowLeft') { x = roundDec(x - step, 2); changed = true; }
+    else if (e.key === 'ArrowRight') { x = roundDec(x + step, 2); changed = true; }
 
     if (changed) {
       e.preventDefault();
@@ -232,19 +263,22 @@ jQuery(document).ready(function ($) {
     updateVisualEditor(c);
   });
 
-  // 7. Drag-to-Draw di Kanvas Kosong
+  // 7. Drag-to-Draw di Kanvas Kosong (Mendukung Output Desimal)
   let drawState = { isDrawing: false, startX: 0, startY: 0, pose: null, container: null, canvas: null, scale: 1 };
   $('.ve-canvas').on('mousedown', function (e) {
     if ($(e.target).closest('.ve-box').length) return;
     const container = $(this).closest('.visual-editor-container');
-    const maxPoses = container.data('prefix').startsWith('news') ? 2 : 6;
+    const maxPoses = String(container.data('prefix') || '').startsWith('news') ? 2 : 6;
     let poseToDraw = null;
     for (let p = 1; p <= maxPoses; p++) {
-      if ((parseFloat(container.find('.pose-w-' + p).val()) || 0) === 0) { poseToDraw = p; break; }
+      if (parseDec(container.find('.pose-w-' + p).val(), 0) === 0) { poseToDraw = p; break; }
     }
     if (!poseToDraw) return alert('Kapasitas kotak penuh!');
     const canvas = $(this), offset = canvas.offset();
-    const scale = canvas.width() / (parseFloat(container.find('.canvas-w').val()) || 1200);
+    const canvasW = parseDec(container.find('.canvas-w').val(), 1200) || 1200;
+    const scale = canvas.width() / canvasW;
+    if (!scale || !Number.isFinite(scale)) return;
+
     drawState = { isDrawing: true, startX: e.pageX - offset.left, startY: e.pageY - offset.top, pose: poseToDraw, container, canvas, scale };
     container.find('.ve-box-p' + poseToDraw).css({ display: 'flex', left: drawState.startX, top: drawState.startY, width: 0, height: 0 });
     e.preventDefault();
@@ -265,15 +299,17 @@ jQuery(document).ready(function ($) {
   $(document).on('mouseup', function () {
     if (!drawState.isDrawing) return;
     const box = drawState.container.find('.ve-box-p' + drawState.pose);
-    const left = parseFloat(box.css('left')), top = parseFloat(box.css('top'));
-    const width = parseFloat(box.css('width')), height = parseFloat(box.css('height'));
+    const left = parseFloat(box.css('left')) || 0;
+    const top = parseFloat(box.css('top')) || 0;
+    const width = parseFloat(box.css('width')) || 0;
+    const height = parseFloat(box.css('height')) || 0;
     if (width < 15 || height < 15) {
       box.hide();
     } else {
-      drawState.container.find('.pose-x-' + drawState.pose).val(Math.round(left / drawState.scale));
-      drawState.container.find('.pose-y-' + drawState.pose).val(Math.round(top / drawState.scale));
-      drawState.container.find('.pose-w-' + drawState.pose).val(Math.round(width / drawState.scale));
-      drawState.container.find('.pose-h-' + drawState.pose).val(Math.round(height / drawState.scale));
+      drawState.container.find('.pose-x-' + drawState.pose).val(roundDec(left / drawState.scale, 1));
+      drawState.container.find('.pose-y-' + drawState.pose).val(roundDec(top / drawState.scale, 1));
+      drawState.container.find('.pose-w-' + drawState.pose).val(roundDec(width / drawState.scale, 1));
+      drawState.container.find('.pose-h-' + drawState.pose).val(roundDec(height / drawState.scale, 1));
       box.focus();
     }
     drawState.isDrawing = false;
@@ -290,13 +326,16 @@ jQuery(document).ready(function ($) {
   $('.btn-zoom-in').click(function () { const c = $(this).closest('.visual-editor-container'); applyZoom(c, (parseInt(c.find('.ve-canvas').attr('data-zoom'), 10) || 100) + 25); });
   $('.btn-zoom-out').click(function () { const c = $(this).closest('.visual-editor-container'); applyZoom(c, (parseInt(c.find('.ve-canvas').attr('data-zoom'), 10) || 100) - 25); });
   $('.btn-zoom-reset').click(function () { applyZoom($(this).closest('.visual-editor-container'), 100); });
-  $('.visual-editor-container input[type="number"]').on('input change', function () { updateVisualEditor($(this).closest('.visual-editor-container')); });
+  $('.visual-editor-container input[type="number"]').not('.frame-order-input').on('input change', function () {
+    updateVisualEditor($(this).closest('.visual-editor-container'));
+  });
   $(window).on('resize', () => $('.visual-editor-container').each(function () { updateVisualEditor($(this)); }));
   $('.visual-editor-container').each(function () { updateVisualEditor($(this)); });
 
   $('.visual-editor-container').on('click', '.btn-match-dim', function () {
-    const btn = $(this), container = btn.closest('.visual-editor-container'), imgEl = container.find('.ve-img')[0];
-    if (!imgEl.src) return alert('Harap pilih gambar frame terlebih dahulu!');
+    const btn = $(this), container = btn.closest('.visual-editor-container'), $img = container.find('.ve-img');
+    const rawSrc = ($img.attr('src') || '').trim();
+    if (!rawSrc) return alert('Harap pilih gambar frame terlebih dahulu!');
     const img = new Image();
     img.onload = function () {
       container.find('.canvas-w').val(this.width);
@@ -306,12 +345,13 @@ jQuery(document).ready(function ($) {
       btn.text('Disesuaikan!');
       setTimeout(() => btn.text(oldText), 1500);
     };
-    img.src = imgEl.src;
+    img.src = rawSrc;
   });
 
   $('.visual-editor-container').on('click', '.btn-auto-detect', function () {
-    const btn = $(this), container = btn.closest('.visual-editor-container'), imgEl = container.find('.ve-img')[0], originalText = btn.text();
-    if (!imgEl.src) return alert('Harap pilih/upload gambar frame terlebih dahulu!');
+    const btn = $(this), container = btn.closest('.visual-editor-container'), $img = container.find('.ve-img'), originalText = btn.text();
+    const rawSrc = ($img.attr('src') || '').trim();
+    if (!rawSrc) return alert('Harap pilih/upload gambar frame terlebih dahulu!');
     btn.text('Loading...').prop('disabled', true);
 
     const img = new Image();
@@ -319,8 +359,9 @@ jQuery(document).ready(function ($) {
     img.onload = function () {
       try {
         const canvas = document.createElement('canvas');
-        const w = parseFloat(container.find('.canvas-w').val()) || img.width;
-        const h = parseFloat(container.find('.canvas-h').val()) || img.height;
+        // Bulatkan ke integer khusus untuk buffer piksel canvas agar Uint8Array tidak error jika dimensi desimal
+        const w = Math.max(1, Math.round(parseDec(container.find('.canvas-w').val(), img.width) || img.width));
+        const h = Math.max(1, Math.round(parseDec(container.find('.canvas-h').val(), img.height) || img.height));
         canvas.width = w;
         canvas.height = h;
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -361,7 +402,7 @@ jQuery(document).ready(function ($) {
           }
         }
         boxes.sort((a, b) => (Math.abs(a.y - b.y) < 50 ? a.x - b.x : a.y - b.y));
-        const maxPoses = container.data('prefix').startsWith('news') ? 2 : 6;
+        const maxPoses = String(container.data('prefix') || '').startsWith('news') ? 2 : 6;
         for (let p = 1; p <= maxPoses; p++) { container.find('.pose-w-' + p).val(0); container.find('.pose-h-' + p).val(0); }
         let applied = 0;
         for (let i = 0; i < boxes.length && i < maxPoses; i++) {
@@ -380,7 +421,7 @@ jQuery(document).ready(function ($) {
       }
       setTimeout(() => btn.text(originalText).prop('disabled', false), 2500);
     };
-    let src = imgEl.src;
+    let src = rawSrc;
     if (src.indexOf('?') === -1) src += '?nocache=' + Date.now();
     img.src = src;
   });

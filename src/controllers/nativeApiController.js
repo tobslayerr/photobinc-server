@@ -14,6 +14,28 @@ const { getPrefixByType, getAuthParams, uploadBufferToImageKit } = require('../s
 const { createSnapTransaction, checkMidtransStatus } = require('../services/midtransService');
 
 const BULAN_ID = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const MAX_STRIP_SLOTS = (Frame.LIMITS && Frame.LIMITS.strip) || 18;
+const MAX_NEWS_SLOTS = (Frame.LIMITS && Frame.LIMITS.news) || 4;
+
+function toNum(val, fallback = 0) {
+  const n = Number(val);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function normalizeSlot(slot) {
+  return {
+    x: toNum(slot?.x, 0),
+    y: toNum(slot?.y, 0),
+    w: toNum(slot?.w, 0),
+    h: toNum(slot?.h, 0),
+  };
+}
+
+function getSafeFreePaymentMethod() {
+  const enumVals = Transaction.schema?.path('payment_method')?.enumValues || [];
+  if (enumVals.length === 0 || enumVals.includes('gratis')) return 'gratis';
+  return 'voucher';
+}
 
 function formatWibReadable(unixSec) {
   const d = dayjs.unix(unixSec).tz('Asia/Jakarta');
@@ -33,20 +55,24 @@ function getBaseUrl(req) {
 // 1. GET /wp-json/photobooth/v1/config
 exports.getConfig = async (req, res) => {
   try {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     const setting = await Setting.getGlobal();
+    const isFreeMode = setting.free_mode === 'yes';
+
     return res.json({
       success: true,
       data: {
         timer: setting.timer,
         prices: {
-          strip: setting.price_strip,
-          news: setting.price_news,
-          strip_promo: setting.price_strip_promo,
+          strip: isFreeMode ? 0 : setting.price_strip,
+          news: isFreeMode ? 0 : setting.price_news,
+          strip_promo: isFreeMode ? 0 : setting.price_strip_promo,
         },
         payment: {
           environment: setting.environment,
           client_key: setting.midtrans_client_key,
-          use_midtrans: setting.use_midtrans,
+          use_midtrans: isFreeMode ? 'no' : setting.use_midtrans,
+          free_mode: isFreeMode,
           manual_qris_url: setting.manual_qris_url,
         },
         voucher_config: {
@@ -68,28 +94,43 @@ exports.getConfig = async (req, res) => {
   }
 };
 
-// 2. GET /wp-json/photobooth/v1/frames
+// 2. GET /wp-json/photobooth/v1/frames (18 Strip & 4 News, Float Coordinates, Anti-Cache)
 exports.getFrames = async (req, res) => {
   try {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     const [stripDocs, newsDocs] = await Promise.all([
-      Frame.find({ type: 'strip', active: true, url: { $ne: '' } }).sort({ order: 1, original_id: 1 }).lean(),
-      Frame.find({ type: 'news', active: true, url: { $ne: '' } }).sort({ order: 1, original_id: 1 }).lean(),
+      Frame.find({
+        type: 'strip',
+        original_id: { $gte: 1, $lte: MAX_STRIP_SLOTS },
+        active: true,
+        url: { $ne: '' },
+      })
+        .sort({ order: 1, original_id: 1 })
+        .lean(),
+      Frame.find({
+        type: 'news',
+        original_id: { $gte: 1, $lte: MAX_NEWS_SLOTS },
+        active: true,
+        url: { $ne: '' },
+      })
+        .sort({ order: 1, original_id: 1 })
+        .lean(),
     ]);
 
     const strip = stripDocs.map((f) => ({
       original_id: f.original_id,
       order: f.order,
       url: f.url,
-      w: f.w,
-      h: f.h,
+      w: toNum(f.w, 1200),
+      h: toNum(f.h, 1800),
       shots: 3,
       slots: {
-        p1: f.slots?.p1 || { x: 0, y: 0, w: 0, h: 0 },
-        p2: f.slots?.p2 || { x: 0, y: 0, w: 0, h: 0 },
-        p3: f.slots?.p3 || { x: 0, y: 0, w: 0, h: 0 },
-        p4: f.slots?.p4 || { x: 0, y: 0, w: 0, h: 0 },
-        p5: f.slots?.p5 || { x: 0, y: 0, w: 0, h: 0 },
-        p6: f.slots?.p6 || { x: 0, y: 0, w: 0, h: 0 },
+        p1: normalizeSlot(f.slots?.p1),
+        p2: normalizeSlot(f.slots?.p2),
+        p3: normalizeSlot(f.slots?.p3),
+        p4: normalizeSlot(f.slots?.p4),
+        p5: normalizeSlot(f.slots?.p5),
+        p6: normalizeSlot(f.slots?.p6),
       },
     }));
 
@@ -98,12 +139,12 @@ exports.getFrames = async (req, res) => {
       order: f.order,
       url: f.url,
       digital_url: f.digital_url || f.url,
-      w: f.w,
-      h: f.h,
+      w: toNum(f.w, 1200),
+      h: toNum(f.h, 1600),
       shots: 2,
       slots: {
-        p1: f.slots?.p1 || { x: 0, y: 0, w: 0, h: 0 },
-        p2: f.slots?.p2 || { x: 0, y: 0, w: 0, h: 0 },
+        p1: normalizeSlot(f.slots?.p1),
+        p2: normalizeSlot(f.slots?.p2),
       },
     }));
 
@@ -121,6 +162,26 @@ exports.validateVoucher = async (req, res) => {
     const clientTs = parseInt(req.body.client_timestamp, 10);
     const nowUnix = clientTs > 1700000000 ? clientTs : Math.floor(Date.now() / 1000);
 
+    const setting = await Setting.getGlobal();
+
+    // Jika Mode Gratis aktif, langsung lolos tanpa memakai kuota voucher
+    if (setting.free_mode === 'yes') {
+      const isNews = rawPkg === 'news' || rawPkg === 'newspaper';
+      const origPrice = isNews ? setting.price_news : setting.price_strip;
+      return res.json({
+        success: true,
+        data: {
+          code: rawCode || 'FREE-MODE',
+          type: 'free',
+          is_free: true,
+          original_price: origPrice,
+          discount: origPrice,
+          final_price: 0,
+          message: 'Mode Gratis sedang aktif! Langsung masuk ke sesi foto tanpa membayar.',
+        },
+      });
+    }
+
     if (rawPkg === 'strip_promo') {
       return res.status(400).json({
         success: false,
@@ -132,7 +193,6 @@ exports.validateVoucher = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Masukkan kode voucher terlebih dahulu.' });
     }
 
-    const setting = await Setting.getGlobal();
     const voucher = await Voucher.findOne({ code: rawCode });
     if (!voucher) {
       return res.status(404).json({ success: false, message: 'Kode voucher tidak ditemukan atau tidak valid.' });
@@ -193,6 +253,7 @@ exports.validateVoucher = async (req, res) => {
 exports.createTransaction = async (req, res) => {
   try {
     const setting = await Setting.getGlobal();
+    const isFreeMode = setting.free_mode === 'yes';
     const rawPkg = String(req.body.package || 'strip').toLowerCase().trim();
     const voucherCode = String(req.body.voucher_code || '').toUpperCase().replace(/[^A-Z0-9-]/g, '');
 
@@ -222,7 +283,12 @@ exports.createTransaction = async (req, res) => {
     let isFree = false;
     let voucherApplied = false;
 
-    if (voucherCode) {
+    if (isFreeMode) {
+      // Bypass seluruh pembayaran & tidak memotong kuota voucher
+      finalPrice = 0;
+      discountAmount = originalPrice;
+      isFree = true;
+    } else if (voucherCode) {
       if (packageType === 'strip_promo') {
         return res.status(400).json({
           success: false,
@@ -283,16 +349,24 @@ exports.createTransaction = async (req, res) => {
     const initialStatus = isFree ? 'lunas' : 'pending';
 
     let dbPackageName = packageType;
-    if (voucherApplied) {
+    if (isFreeMode) {
+      dbPackageName = `${packageType} (MODE GRATIS)`;
+    } else if (voucherApplied) {
       dbPackageName = `${packageType} (Voucher ${isFree ? 'GRATIS' : 'DISKON'}: ${voucherCode})`;
     }
+
+    const paymentMethod = isFreeMode
+      ? getSafeFreePaymentMethod()
+      : isFree
+        ? 'voucher'
+        : 'qris';
 
     await Transaction.create({
       order_id: orderId,
       package_name: dbPackageName,
       amount: finalPrice,
       status: initialStatus,
-      payment_method: isFree ? 'voucher' : 'qris',
+      payment_method: paymentMethod,
       created_at_wib: clientSqlDatetime,
     });
 
@@ -311,6 +385,7 @@ exports.createTransaction = async (req, res) => {
         success: true,
         data: {
           is_manual: false,
+          free_mode: false,
           token,
           order_id: orderId,
           package: packageType,
@@ -330,21 +405,24 @@ exports.createTransaction = async (req, res) => {
       success: true,
       data: {
         is_manual: true,
-        qris_url: setting.manual_qris_url,
+        free_mode: isFreeMode,
+        qris_url: isFreeMode ? '' : setting.manual_qris_url,
         order_id: orderId,
         package: packageType,
         voucher_code: voucherApplied ? voucherCode : '',
-        voucher_type: voucherApplied ? (isFree ? 'free' : 'discount') : '',
+        voucher_type: isFreeMode ? 'free_mode' : voucherApplied ? (isFree ? 'free' : 'discount') : '',
         original_price: originalPrice,
         discount: discountAmount,
         final_price: finalPrice,
         price: finalPrice,
         is_free: isFree,
-        message: isFree
-          ? 'Selamat! Voucher Gratis 100% berhasil diklaim. Silakan langsung masuk ke sesi foto tanpa perlu membayar!'
-          : voucherApplied
-            ? `Selamat! Anda mendapatkan potongan harga Rp ${discountAmount.toLocaleString('id-ID')}. Total bayar: Rp ${finalPrice.toLocaleString('id-ID')}`
-            : 'Silakan selesaikan pembayaran melalui kasir/QRIS.',
+        message: isFreeMode
+          ? 'Mode Gratis aktif! Silakan langsung masuk ke sesi foto tanpa perlu membayar!'
+          : isFree
+            ? 'Selamat! Voucher Gratis 100% berhasil diklaim. Silakan langsung masuk ke sesi foto tanpa perlu membayar!'
+            : voucherApplied
+              ? `Selamat! Anda mendapatkan potongan harga Rp ${discountAmount.toLocaleString('id-ID')}. Total bayar: Rp ${finalPrice.toLocaleString('id-ID')}`
+              : 'Silakan selesaikan pembayaran melalui kasir/QRIS.',
       },
     });
   } catch (err) {
@@ -532,6 +610,8 @@ exports.finalizeSession = async (req, res) => {
       await existingOrder.save();
     } else {
       const setting = await Setting.getGlobal();
+      const isFreeMode = setting.free_mode === 'yes';
+
       let price = setting.price_strip;
       if (pkg === 'news') price = setting.price_news;
       else if (pkg === 'strip_promo') price = setting.price_strip_promo;
@@ -539,10 +619,11 @@ exports.finalizeSession = async (req, res) => {
       await Transaction.create({
         order_id: orderId,
         parent_order_id: parentOrderId,
-        package_name: pkg,
+        package_name: isFreeMode ? `${pkg} (MODE GRATIS)` : pkg,
         frame_info: frameInfo,
-        amount: price,
+        amount: isFreeMode ? 0 : price,
         status: 'lunas',
+        payment_method: isFreeMode ? getSafeFreePaymentMethod() : 'qris',
         media_link: masterLink,
         all_files: allFilesStr,
         print_url: printUrl,

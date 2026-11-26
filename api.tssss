@@ -1,0 +1,171 @@
+import RNFS from 'react-native-fs';
+
+export const API_BASE_URL = 'https://photobinc.erafmunj.com/wp-json/photobooth/v1';
+
+export type UploadMediaType = 'photo' | 'video' | 'gif' | 'raw' | 'print';
+
+export interface UploadResult {
+  filename: string;
+  url: string;
+}
+
+const safeParseJson = (rawText: string, fallbackLabel: string) => {
+  try {
+    return JSON.parse(rawText);
+  } catch {
+    throw new Error(`${fallbackLabel}: Respon server bukan JSON valid (${rawText.slice(0, 120)})`);
+  }
+};
+
+export const ApiService = {
+  getConfig: async () => {
+    const res = await fetch(`${API_BASE_URL}/config`);
+    const json = safeParseJson(await res.text(), 'GetConfig');
+    return json.data;
+  },
+
+  getFrames: async () => {
+    const res = await fetch(`${API_BASE_URL}/frames`);
+    const json = safeParseJson(await res.text(), 'GetFrames');
+    return json.data;
+  },
+
+  // --- VALIDASI VOUCHER 5 DIGIT ---
+  validateVoucher: async (code: string, pkg: string, clientTimestamp: number) => {
+    const res = await fetch(`${API_BASE_URL}/voucher/validate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code: code,
+        package: pkg,
+        client_timestamp: clientTimestamp
+      })
+    });
+    const json = safeParseJson(await res.text(), 'ValidateVoucher');
+    if (!res.ok || json.success === false || json.code) {
+      throw new Error(json.message || json.data?.message || 'Kode voucher tidak valid.');
+    }
+    return json.data;
+  },
+
+  // --- PEMBUATAN TRANSAKSI (MENDUKUNG VOUCHER & WAKTU JS) ---
+  createTransaction: async (pkgName: string, voucherCode?: string | null, timePayload?: any) => {
+    const res = await fetch(`${API_BASE_URL}/transaction/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        package: pkgName,
+        voucher_code: voucherCode || '',
+        client_timestamp: timePayload?.client_timestamp || Math.floor(Date.now() / 1000),
+        client_datetime_wib: timePayload?.client_datetime_wib || '',
+        client_sql_datetime: timePayload?.client_sql_datetime || ''
+      })
+    });
+    const json = safeParseJson(await res.text(), 'CreateTransaction');
+    if (!res.ok || !json.success) {
+      throw new Error(json.message || json.data?.message || 'Gagal membuat transaksi');
+    }
+    return json.data;
+  },
+
+  checkPayment: async (orderId: string) => {
+    const res = await fetch(`${API_BASE_URL}/transaction/check?order_id=${orderId}`);
+    const json = safeParseJson(await res.text(), 'CheckPayment');
+    return json.data;
+  },
+
+  // --- FUNGSI UPLOAD FILE TERPUSAT (DENGAN TIMEOUT WATCHDOG & SAFE PARSE) ---
+  uploadPhysicalFile: async (uri: string, type: UploadMediaType): Promise<UploadResult> => {
+    const extension = type === 'video' ? 'mp4' : type === 'gif' ? 'gif' : 'jpg';
+    const mimeType = type === 'video' ? 'video/mp4' : type === 'gif' ? 'image/gif' : 'image/jpeg';
+    const path = uri.replace(/^file:\/\//, '');
+
+    if (!(await RNFS.exists(path))) {
+      throw new Error(`File ${type} tidak ditemukan.`);
+    }
+    const stat = await RNFS.stat(path);
+    if (Number(stat.size) < 100) {
+      throw new Error(`File ${type} korup.`);
+    }
+
+    const uploadUrl = `${API_BASE_URL}/media/upload`;
+    const backendType = type === 'print' ? 'photo' : type;
+    const uniqueSuffix = `${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    const timeoutMs = type === 'video' ? 60000 : 30000;
+
+    const { jobId, promise } = RNFS.uploadFiles({
+      toUrl: uploadUrl,
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+      files: [
+        {
+          name: 'file',
+          filename: `final_${type}_${uniqueSuffix}.${extension}`,
+          filepath: path,
+          filetype: mimeType,
+        },
+      ],
+      fields: { file_type: backendType },
+    });
+
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(() => {
+        try { RNFS.stopUpload(jobId); } catch {}
+        reject(new Error(`Upload ${type} timeout setelah ${timeoutMs / 1000} detik.`));
+      }, timeoutMs);
+    });
+
+    let r: { statusCode: number; body: string };
+    try {
+      r = await Promise.race([promise, timeoutPromise]);
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+    }
+
+    if (r.statusCode === 200 || r.statusCode === 201) {
+      const json = safeParseJson(r.body, `Upload ${type}`);
+      if (json.success && json.data) {
+        return {
+          filename: json.data.filename,
+          url: json.data.url,
+        };
+      }
+      throw new Error(json.message || 'Ditolak Server API');
+    }
+
+    if (r.statusCode === 413) {
+      throw new Error(`File ${type} terlalu besar untuk limit server (HTTP 413).`);
+    }
+    throw new Error(`Upload ${type} gagal (HTTP ${r.statusCode})`);
+  },
+
+  finalizeSession: async (payload: {
+    order_id: string;
+    parent_order_id?: string | null;
+    package: string;
+    frame_info: string;
+    files: string[];
+    print_filename: string;
+  }) => {
+    const res = await fetch(`${API_BASE_URL}/session/finalize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...payload,
+        parent_order_id: payload.parent_order_id || null,
+      }),
+    });
+    const json = safeParseJson(await res.text(), 'FinalizeSession');
+    if (!res.ok || !json.success) {
+      throw new Error(json.message || `Finalisasi Gagal (HTTP ${res.status})`);
+    }
+    return json.data;
+  }
+};
+
+export const GlobalStore = {
+  config: null as any,
+  frames: null as any,
+  activeVoucher: null as any,
+};

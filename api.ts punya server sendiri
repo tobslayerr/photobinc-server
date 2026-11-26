@@ -1,0 +1,291 @@
+import RNFS from 'react-native-fs';
+
+// 🔄 CUKUP TUKAR KOMENTAR 1 BARIS INI UNTUK PINDAH SERVER (VERCEL <-> WORDPRESS)
+export const API_BASE_URL = 'https://photobinc.vercel.app/wp-json/photobooth/v1';
+// export const API_BASE_URL = 'https://photobinc.erafmunj.com/wp-json/photobooth/v1';
+
+export type UploadMediaType = 'photo' | 'video' | 'gif' | 'raw' | 'print';
+
+export interface UploadResult {
+  filename: string;
+  url: string;
+}
+
+const safeParseJson = (rawText: string, fallbackLabel: string) => {
+  try {
+    return JSON.parse(rawText);
+  } catch {
+    throw new Error(`${fallbackLabel}: Respon server bukan JSON valid (${rawText.slice(0, 120)})`);
+  }
+};
+
+const getPrefixByType = (type: UploadMediaType) => {
+  if (type === 'raw') return 'raw-';
+  if (type === 'video') return 'live-';
+  if (type === 'gif') return 'slide-';
+  if (type === 'print') return 'print-';
+  return 'studio-';
+};
+
+export const ApiService = {
+  getConfig: async () => {
+    const res = await fetch(`${API_BASE_URL}/config`);
+    const json = safeParseJson(await res.text(), 'GetConfig');
+    GlobalStore.config = json.data;
+    return json.data;
+  },
+
+  getFrames: async () => {
+    const res = await fetch(`${API_BASE_URL}/frames`);
+    const json = safeParseJson(await res.text(), 'GetFrames');
+    return json.data;
+  },
+
+  // --- VALIDASI VOUCHER 5 DIGIT ---
+  validateVoucher: async (code: string, pkg: string, clientTimestamp: number) => {
+    const res = await fetch(`${API_BASE_URL}/voucher/validate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code: code,
+        package: pkg,
+        client_timestamp: clientTimestamp,
+      }),
+    });
+    const json = safeParseJson(await res.text(), 'ValidateVoucher');
+    if (!res.ok || json.success === false || json.code) {
+      throw new Error(json.message || json.data?.message || 'Kode voucher tidak valid.');
+    }
+    return json.data;
+  },
+
+  // --- PEMBUATAN TRANSAKSI (MENDUKUNG VOUCHER & WAKTU JS) ---
+  createTransaction: async (pkgName: string, voucherCode?: string | null, timePayload?: any) => {
+    const res = await fetch(`${API_BASE_URL}/transaction/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        package: pkgName,
+        voucher_code: voucherCode || '',
+        client_timestamp: timePayload?.client_timestamp || Math.floor(Date.now() / 1000),
+        client_datetime_wib: timePayload?.client_datetime_wib || '',
+        client_sql_datetime: timePayload?.client_sql_datetime || '',
+      }),
+    });
+    const json = safeParseJson(await res.text(), 'CreateTransaction');
+    if (!res.ok || !json.success) {
+      throw new Error(json.message || json.data?.message || 'Gagal membuat transaksi');
+    }
+    return json.data;
+  },
+
+  checkPayment: async (orderId: string) => {
+    const res = await fetch(`${API_BASE_URL}/transaction/check?order_id=${encodeURIComponent(orderId)}`);
+    const json = safeParseJson(await res.text(), 'CheckPayment');
+    return json.data;
+  },
+
+  // --- UPLOAD DUAL-MODE: OTOMATIS DIRECT UPLOAD IMAGEKIT (VERCEL) / MULTIPART (WORDPRESS) ---
+  uploadPhysicalFile: async (uri: string, type: UploadMediaType): Promise<UploadResult> => {
+    const extension = type === 'video' ? 'mp4' : type === 'gif' ? 'gif' : 'jpg';
+    const mimeType = type === 'video' ? 'video/mp4' : type === 'gif' ? 'image/gif' : 'image/jpeg';
+    const path = uri.replace(/^file:\/\//, '');
+
+    if (!(await RNFS.exists(path))) {
+      throw new Error(`File ${type} tidak ditemukan.`);
+    }
+    const stat = await RNFS.stat(path);
+    if (Number(stat.size) < 100) {
+      throw new Error(`File ${type} korup.`);
+    }
+
+    // Pastikan config sudah termuat di GlobalStore sebelum menentukan mode upload
+    if (!GlobalStore.config?.storage) {
+      try {
+        await ApiService.getConfig();
+      } catch (e) {
+        console.warn('[Upload] Gagal memuat config otomatis:', e);
+      }
+    }
+
+    const timeoutMs = type === 'video' ? 60000 : 30000;
+    const isImageKitBackend = GlobalStore.config?.storage?.provider === 'imagekit';
+    console.log('[Upload Mode]', isImageKitBackend ? 'ImageKit Direct' : 'WordPress Multipart', {
+      type,
+      size: stat.size,
+    });
+
+    // Pengaman agar tidak pernah mengirim file besar ke Vercel /media/upload
+    if (!isImageKitBackend && API_BASE_URL.includes('vercel.app')) {
+      throw new Error(
+        'Konfigurasi ImageKit tidak terbaca dari server Vercel. Cek endpoint /config dan Environment Variables ImageKit di Vercel.'
+      );
+    }
+
+    // =========================================================================
+    // MODE A: DIRECT UPLOAD KE IMAGEKIT.IO (SERVER VERCEL - BEBAS LIMIT 4.5MB)
+    // =========================================================================
+    if (isImageKitBackend) {
+      const authRes = await fetch(`${API_BASE_URL}/media/imagekit-auth`);
+      const authJson = safeParseJson(await authRes.text(), 'ImageKitAuth');
+      if (!authRes.ok || !authJson.success || !authJson.data?.signature) {
+        throw new Error(authJson.message || 'Gagal meminta signature upload ImageKit.');
+      }
+
+      const auth = authJson.data;
+      const prefix = getPrefixByType(type);
+      const uniqueName = `${prefix}${Math.floor(Date.now() / 1000)}-${Math.floor(1000 + Math.random() * 9000)}.${extension}`;
+
+      const { jobId, promise } = RNFS.uploadFiles({
+        toUrl: 'https://upload.imagekit.io/api/v1/files/upload',
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+        files: [
+          {
+            name: 'file',
+            filename: uniqueName,
+            filepath: path,
+            filetype: mimeType,
+          },
+        ],
+        fields: {
+          fileName: uniqueName,
+          publicKey: String(auth.publicKey),
+          signature: String(auth.signature),
+          expire: String(auth.expire),
+          token: String(auth.token),
+          folder: String(auth.folder || '/photobooth/sessions'),
+          useUniqueFileName: 'false',
+        },
+      });
+
+      let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutHandle = setTimeout(() => {
+          try {
+            RNFS.stopUpload(jobId);
+          } catch {}
+          reject(new Error(`Upload ImageKit ${type} timeout setelah ${timeoutMs / 1000} detik.`));
+        }, timeoutMs);
+      });
+
+      let r: { statusCode: number; body: string };
+      try {
+        r = await Promise.race([promise, timeoutPromise]);
+      } finally {
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+      }
+
+      if (r.statusCode !== 200 && r.statusCode !== 201) {
+        throw new Error(`Upload ImageKit ${type} gagal (HTTP ${r.statusCode}): ${r.body.slice(0, 140)}`);
+      }
+
+      const ikJson = safeParseJson(r.body, `ImageKit ${type}`);
+
+      // Catat metadata (filename, url, fileId) ke MongoDB via Vercel (< 1 KB)
+      const regRes = await fetch(`${API_BASE_URL}/media/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: ikJson.name,
+          url: ikJson.url,
+          fileId: ikJson.fileId,
+          type,
+        }),
+      });
+      const regJson = safeParseJson(await regRes.text(), `Register ${type}`);
+      if (!regRes.ok || !regJson.success) {
+        throw new Error(regJson.message || 'Gagal mencatat file ke database.');
+      }
+
+      return {
+        filename: ikJson.name,
+        url: ikJson.url,
+      };
+    }
+
+    // =========================================================================
+    // MODE B: MULTIPART STANDAR (SERVER WORDPRESS)
+    // =========================================================================
+    const uploadUrl = `${API_BASE_URL}/media/upload`;
+    const backendType = type === 'print' ? 'photo' : type;
+    const uniqueSuffix = `${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+
+    const { jobId, promise } = RNFS.uploadFiles({
+      toUrl: uploadUrl,
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+      files: [
+        {
+          name: 'file',
+          filename: `final_${type}_${uniqueSuffix}.${extension}`,
+          filepath: path,
+          filetype: mimeType,
+        },
+      ],
+      fields: { file_type: backendType },
+    });
+
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(() => {
+        try {
+          RNFS.stopUpload(jobId);
+        } catch {}
+        reject(new Error(`Upload ${type} timeout setelah ${timeoutMs / 1000} detik.`));
+      }, timeoutMs);
+    });
+
+    let r: { statusCode: number; body: string };
+    try {
+      r = await Promise.race([promise, timeoutPromise]);
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+    }
+
+    if (r.statusCode === 200 || r.statusCode === 201) {
+      const json = safeParseJson(r.body, `Upload ${type}`);
+      if (json.success && json.data) {
+        return {
+          filename: json.data.filename,
+          url: json.data.url,
+        };
+      }
+      throw new Error(json.message || 'Ditolak Server API');
+    }
+
+    if (r.statusCode === 413) {
+      throw new Error(`File ${type} terlalu besar untuk limit server (HTTP 413).`);
+    }
+    throw new Error(`Upload ${type} gagal (HTTP ${r.statusCode})`);
+  },
+
+  finalizeSession: async (payload: {
+    order_id: string;
+    parent_order_id?: string | null;
+    package: string;
+    frame_info: string;
+    files: string[];
+    print_filename: string;
+  }) => {
+    const res = await fetch(`${API_BASE_URL}/session/finalize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...payload,
+        parent_order_id: payload.parent_order_id || null,
+      }),
+    });
+    const json = safeParseJson(await res.text(), 'FinalizeSession');
+    if (!res.ok || !json.success) {
+      throw new Error(json.message || `Finalisasi Gagal (HTTP ${res.status})`);
+    }
+    return json.data;
+  },
+};
+
+export const GlobalStore = {
+  config: null as any,
+  frames: null as any,
+  activeVoucher: null as any,
+};

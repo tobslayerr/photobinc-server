@@ -14,10 +14,19 @@ const { getAuthParams, findSessionFileIdsByNames, deleteFileIds } = require('../
 const { importFromWordPressJson, exportToWordPressJson } = require('../services/frameMapper');
 
 const BULAN_ID = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const MAX_STRIP_SLOTS = (Frame.LIMITS && Frame.LIMITS.strip) || 18;
+const MAX_NEWS_SLOTS = (Frame.LIMITS && Frame.LIMITS.news) || 4;
 
 function toInt(val, fallback = 0) {
   const n = parseInt(val, 10);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function toFloat(val, fallback = 0) {
+  if (val === '' || val === null || val === undefined) return fallback;
+  const normalized = String(val).trim().replace(',', '.');
+  const n = parseFloat(normalized);
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : fallback;
 }
 
 function normalizeBasePackage(pkgName = '') {
@@ -324,54 +333,87 @@ exports.deleteInvoice = async (req, res) => {
 };
 
 // =========================================================================
-// 2. SETTING FRAME, HARGA & VISUAL EDITOR (/admin/frames)
+// 2. SETTING FRAME, HARGA, DESIMAL & DRAG-DROP URUTAN (/admin/frames)
 // =========================================================================
 exports.getFramesPage = async (req, res) => {
   try {
-    const [setting, existingFrames] = await Promise.all([Setting.getGlobal(), Frame.find({}).lean()]);
+    const [setting, existingFrames] = await Promise.all([
+      Setting.getGlobal(),
+      Frame.find({}).lean(),
+    ]);
     const frameMap = new Map(existingFrames.map((f) => [`${f.type}_${f.original_id}`, f]));
 
     const stripFrames = [];
-    for (let i = 1; i <= 18; i++) {
+    for (let i = 1; i <= MAX_STRIP_SLOTS; i++) {
       const f = frameMap.get(`strip_${i}`);
       const defaultSlots = {};
       for (let p = 1; p <= 6; p++) {
-        defaultSlots[`p${p}`] = f?.slots?.[`p${p}`] || {
-          x: p <= 3 ? 80 : 680,
-          y: 120 + ((p <= 3 ? p - 1 : p - 4) * 390),
-          w: 440,
-          h: 330,
-        };
+        const s = f?.slots?.[`p${p}`];
+        defaultSlots[`p${p}`] = s
+          ? {
+              x: toFloat(s.x, 0),
+              y: toFloat(s.y, 0),
+              w: toFloat(s.w, 0),
+              h: toFloat(s.h, 0),
+            }
+          : {
+              x: p <= 3 ? 80 : 680,
+              y: 120 + (p <= 3 ? p - 1 : p - 4) * 390,
+              w: 440,
+              h: 330,
+            };
       }
       stripFrames.push({
         original_id: i,
-        active: f ? f.active : false,
-        order: f ? f.order : i,
+        active: f ? Boolean(f.active) : false,
+        order: f ? toInt(f.order, i) : i,
         url: f ? f.url || '' : '',
-        w: f ? f.w || 1200 : 1200,
-        h: f ? f.h || 1800 : 1800,
+        w: f && Number.isFinite(Number(f.w)) && Number(f.w) > 0 ? toFloat(f.w, 1200) : 1200,
+        h: f && Number.isFinite(Number(f.h)) && Number(f.h) > 0 ? toFloat(f.h, 1800) : 1800,
         slots: defaultSlots,
       });
     }
 
+    // Urutkan tampilan admin persis sesuai urutan (order) yang tampil di aplikasi
+    stripFrames.sort((a, b) => a.order - b.order || a.original_id - b.original_id);
+
     const newsFrames = [];
-    for (let i = 1; i <= 3; i++) {
+    for (let i = 1; i <= MAX_NEWS_SLOTS; i++) {
       const f = frameMap.get(`news_${i}`);
+      const s1 = f?.slots?.p1;
+      const s2 = f?.slots?.p2;
       const defaultSlots = {
-        p1: f?.slots?.p1 || { x: 100, y: 300, w: 1000, h: 800 },
-        p2: f?.slots?.p2 || { x: 100, y: 1150, w: 400, h: 300 },
+        p1: s1
+          ? {
+              x: toFloat(s1.x, 0),
+              y: toFloat(s1.y, 0),
+              w: toFloat(s1.w, 0),
+              h: toFloat(s1.h, 0),
+            }
+          : { x: 100, y: 300, w: 1000, h: 800 },
+        p2: s2
+          ? {
+              x: toFloat(s2.x, 0),
+              y: toFloat(s2.y, 0),
+              w: toFloat(s2.w, 0),
+              h: toFloat(s2.h, 0),
+            }
+          : { x: 100, y: 1150, w: 400, h: 300 },
       };
       newsFrames.push({
         original_id: i,
-        active: f ? f.active : false,
-        order: f ? f.order : i,
+        active: f ? Boolean(f.active) : false,
+        order: f ? toInt(f.order, i) : i,
         url: f ? f.url || '' : '',
         digital_url: f ? f.digital_url || '' : '',
-        w: f ? f.w || 1200 : 1200,
-        h: f ? f.h || 1600 : 1600,
+        w: f && Number.isFinite(Number(f.w)) && Number(f.w) > 0 ? toFloat(f.w, 1200) : 1200,
+        h: f && Number.isFinite(Number(f.h)) && Number(f.h) > 0 ? toFloat(f.h, 1600) : 1600,
         slots: defaultSlots,
       });
     }
+
+    // Urutkan Newspaper persis sesuai urutan (order) yang tampil di aplikasi
+    newsFrames.sort((a, b) => a.order - b.order || a.original_id - b.original_id);
 
     return res.render('admin/frames', {
       pageTitle: 'Pengaturan Frame & Harga',
@@ -403,14 +445,14 @@ exports.saveFramesAndSettings = async (req, res) => {
 
     const bulkOps = [];
 
-    for (let i = 1; i <= 18; i++) {
+    for (let i = 1; i <= MAX_STRIP_SLOTS; i++) {
       const slots = {};
       for (let j = 1; j <= 6; j++) {
         slots[`p${j}`] = {
-          x: toInt(b[`strip_f${i}_p${j}_x`], 0),
-          y: toInt(b[`strip_f${i}_p${j}_y`], 0),
-          w: toInt(b[`strip_f${i}_p${j}_w`], 0),
-          h: toInt(b[`strip_f${i}_p${j}_h`], 0),
+          x: toFloat(b[`strip_f${i}_p${j}_x`], 0),
+          y: toFloat(b[`strip_f${i}_p${j}_y`], 0),
+          w: toFloat(b[`strip_f${i}_p${j}_w`], 0),
+          h: toFloat(b[`strip_f${i}_p${j}_h`], 0),
         };
       }
       bulkOps.push({
@@ -421,10 +463,10 @@ exports.saveFramesAndSettings = async (req, res) => {
               type: 'strip',
               original_id: i,
               active: Boolean(b[`strip_f${i}_active`]),
-              order: toInt(b[`strip_f${i}_order`], i),
+              order: Math.max(1, toInt(b[`strip_f${i}_order`], i)),
               url: String(b[`strip_f${i}_url`] || '').trim(),
-              w: toInt(b[`strip_f${i}_w`], 1200),
-              h: toInt(b[`strip_f${i}_h`], 1800),
+              w: toFloat(b[`strip_f${i}_w`], 1200),
+              h: toFloat(b[`strip_f${i}_h`], 1800),
               shots: 3,
               slots,
             },
@@ -434,14 +476,14 @@ exports.saveFramesAndSettings = async (req, res) => {
       });
     }
 
-    for (let i = 1; i <= 3; i++) {
+    for (let i = 1; i <= MAX_NEWS_SLOTS; i++) {
       const slots = {};
       for (let j = 1; j <= 2; j++) {
         slots[`p${j}`] = {
-          x: toInt(b[`news_f${i}_p${j}_x`], 0),
-          y: toInt(b[`news_f${i}_p${j}_y`], 0),
-          w: toInt(b[`news_f${i}_p${j}_w`], 0),
-          h: toInt(b[`news_f${i}_p${j}_h`], 0),
+          x: toFloat(b[`news_f${i}_p${j}_x`], 0),
+          y: toFloat(b[`news_f${i}_p${j}_y`], 0),
+          w: toFloat(b[`news_f${i}_p${j}_w`], 0),
+          h: toFloat(b[`news_f${i}_p${j}_h`], 0),
         };
       }
       const printUrl = String(b[`news_f${i}_url`] || '').trim();
@@ -455,11 +497,11 @@ exports.saveFramesAndSettings = async (req, res) => {
               type: 'news',
               original_id: i,
               active: Boolean(b[`news_f${i}_active`]),
-              order: toInt(b[`news_f${i}_order`], i),
+              order: Math.max(1, toInt(b[`news_f${i}_order`], i)),
               url: printUrl,
               digital_url: digitalUrl || printUrl,
-              w: toInt(b[`news_f${i}_w`], 1200),
-              h: toInt(b[`news_f${i}_h`], 1600),
+              w: toFloat(b[`news_f${i}_w`], 1200),
+              h: toFloat(b[`news_f${i}_h`], 1600),
               shots: 2,
               slots,
             },
@@ -470,16 +512,35 @@ exports.saveFramesAndSettings = async (req, res) => {
     }
 
     await Frame.bulkWrite(bulkOps);
-    return res.redirect('/admin/frames?msg=' + encodeURIComponent('Semua pengaturan frame, koordinat, dan harga berhasil disimpan!'));
+    return res.redirect(
+      '/admin/frames?msg=' +
+        encodeURIComponent('Semua pengaturan frame, koordinat desimal, urutan, dan harga berhasil disimpan!')
+    );
   } catch (err) {
     return res.redirect('/admin/frames?err=' + encodeURIComponent(`Gagal menyimpan: ${err.message}`));
+  }
+};
+
+// Endpoint opsional untuk AJAX Quick-Sort Drag & Drop jika ingin simpan urutan tanpa reload
+exports.reorderFrames = async (req, res) => {
+  try {
+    const type = String(req.body.type || '').trim();
+    const orderList = Array.isArray(req.body.order) ? req.body.order : [];
+    if (!['strip', 'news'].includes(type) || orderList.length === 0) {
+      return res.status(400).json({ success: false, message: 'Parameter urutan tidak valid.' });
+    }
+    await Frame.reorderGroup(type, orderList);
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
 exports.exportFramesJson = async (req, res) => {
   try {
     const jsonData = await exportToWordPressJson();
-    const ts = dayjs().tz('Asia/Jakarta').format('YYYY-MM-DD_HH-mm-ss');
+    const rawJsTs = req.query.js_ts ? String(req.query.js_ts).replace(/[^0-9_-]/g, '') : '';
+    const ts = rawJsTs || dayjs().tz('Asia/Jakarta').format('YYYY-MM-DD_HH-mm-ss');
     res.setHeader('Content-Disposition', `attachment; filename=photobooth-frame-settings-${ts}.json`);
     res.setHeader('Content-Type', 'application/json');
     return res.send(JSON.stringify(jsonData, null, 2));
@@ -524,13 +585,19 @@ exports.getPaymentPage = async (req, res) => {
 exports.savePaymentSettings = async (req, res) => {
   try {
     const setting = await Setting.getGlobal();
+    setting.free_mode = req.body.ef_pb_free_mode === 'yes' ? 'yes' : 'no';
     setting.use_midtrans = req.body.ef_pb_use_midtrans === 'yes' ? 'yes' : 'no';
     setting.manual_qris_url = String(req.body.ef_pb_manual_qris_url || '').trim();
     if (req.body.manual_qris_file_id) {
       setting.manual_qris_file_id = String(req.body.manual_qris_file_id).trim();
     }
     await setting.save();
-    return res.redirect('/admin/payment?msg=' + encodeURIComponent('Pengaturan Pembayaran Berhasil Disimpan.'));
+
+    const statusLabel =
+      setting.free_mode === 'yes'
+        ? 'Pengaturan Disimpan! MODE GRATIS AKTIF (Semua sesi langsung skip pembayaran).'
+        : 'Pengaturan Pembayaran Berhasil Disimpan (Mode Berbayar Aktif).';
+    return res.redirect('/admin/payment?msg=' + encodeURIComponent(statusLabel));
   } catch (err) {
     return res.status(500).send(`Gagal menyimpan payment: ${err.message}`);
   }
