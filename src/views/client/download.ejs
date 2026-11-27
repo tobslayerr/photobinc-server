@@ -703,6 +703,17 @@
 <body>
   <div class="bg-ambient" aria-hidden="true"></div>
 
+  <%
+    const hasFrameCat = availableCats.some(function(c) { return c.key === 'frame'; });
+    const hasLiveCat = availableCats.some(function(c) { return c.key === 'live' || c.key === 'video'; });
+    const hasRawCat = availableCats.some(function(c) { return c.key === 'raw'; });
+    // Mode Addons hanya mengunggah Frame & Live Photo (tanpa RAW/GIF), jadi langsung dianggap selesai tanpa banner tunggu
+    const isAddonGallery =
+      (typeof isAddon !== 'undefined' && Boolean(isAddon)) ||
+      (hasFrameCat && hasLiveCat && !hasRawCat);
+    const shouldShowSyncBanner = !isUploadComplete && !isAddonGallery;
+  %>
+
   <% if (totalPosts === 0) { %>
     <div class="center-wrap">
       <% if (oid) { %>
@@ -766,8 +777,8 @@
           </a>
         <% } %>
 
-        <!-- SYNC PROGRESS BANNER -->
-        <% if (!isUploadComplete) { %>
+        <!-- SYNC PROGRESS BANNER (OTOMATIS NONAKTIF UNTUK MODE ADDONS) -->
+        <% if (shouldShowSyncBanner) { %>
           <div class="neo-sync-banner">
             <i class="ri-loader-4-line spin-anim"></i>
             <span>Sedang mengunggah sisa fotomu... (Auto-refresh)</span>
@@ -791,7 +802,7 @@
         <div class="neo-tabs-wrap">
           <div class="neo-tab-hint" id="neo-tab-hint" style="display:none;">
             <i class="ri-sparkling-2-fill" style="color: var(--blue);"></i>
-            <span>Pilih tab di bawah untuk lihat <strong>Frame, Live Video, GIF &amp; Pose HD</strong></span>
+            <span id="neo-tab-hint-text">Pilih tab di bawah untuk melihat <strong>semua hasil</strong></span>
           </div>
           <div class="neo-tabs" id="neo-tabs">
             <% availableCats.forEach(function(cat, idx) { %>
@@ -876,22 +887,24 @@
         });
 
         const CAT_META = {
-          frame: { label: 'Frame',      icon: 'ri-image-2-fill',  color: '#ff99c8' },
-          video: { label: 'Live Video', icon: 'ri-movie-2-fill',  color: '#facc15' },
-          gif:   { label: 'GIF',        icon: 'ri-file-gif-fill', color: '#d0f4de' },
-          raw:   { label: 'Pose HD',    icon: 'ri-camera-3-fill', color: '#90dbf4' },
+          frame: { label: 'Frame',      icon: 'ri-image-2-fill',  color: '#facc15' },
+          live:  { label: 'Live Photo', icon: 'ri-movie-2-fill',  color: '#c084fc' },
+          video: { label: 'Live Video', icon: 'ri-movie-2-fill',  color: '#c084fc' },
+          gif:   { label: 'GIF',        icon: 'ri-sparkling-fill', color: '#f472b6' },
+          raw:   { label: 'Pose HD',    icon: 'ri-camera-3-fill', color: '#38bdf8' },
         };
         SERVER_CATS.forEach((c) => {
           if (c && c.key) {
             CAT_META[c.key] = {
               label: c.label || (CAT_META[c.key] && CAT_META[c.key].label) || c.key,
               icon:  c.icon  || (CAT_META[c.key] && CAT_META[c.key].icon)  || 'ri-image-line',
-              color: (CAT_META[c.key] && CAT_META[c.key].color) || c.color || '#90dbf4',
+              color: c.color || (CAT_META[c.key] && CAT_META[c.key].color) || '#90dbf4',
             };
           }
         });
 
-        const CAT_ORDER = ['frame', 'video', 'gif', 'raw'];
+        // Urutan tab konsisten: Frame -> Live Photo -> GIF -> Pose HD
+        const CAT_ORDER = ['frame', 'live', 'video', 'gif', 'raw'];
         const countByCat = {};
         PB_ITEMS.forEach((it) => {
           countByCat[it.cat] = (countByCat[it.cat] || 0) + 1;
@@ -901,26 +914,34 @@
           ...Object.keys(countByCat).filter((k) => !CAT_ORDER.includes(k) && countByCat[k] > 0),
         ];
 
-        const likedSet   = new Set();
-        const tabsWrap   = document.getElementById('neo-tabs');
-        const tabHint    = document.getElementById('neo-tab-hint');
-        const stageBadge = document.getElementById('stage-badge');
-        const stageCount = document.getElementById('stage-counter');
-        const viewport   = document.getElementById('stage-viewport');
-        const mediaSlot  = document.getElementById('stage-media-slot');
-        const thumbStrip = document.getElementById('neo-thumb-strip');
-        const captionBar = document.getElementById('stage-caption');
-        const btnPrev    = document.getElementById('btn-prev');
-        const btnNext    = document.getElementById('btn-next');
-        const btnLike    = document.getElementById('btn-like');
-        const btnZoom    = document.getElementById('btn-zoom');
-        const btnActDl   = document.getElementById('btn-act-dl');
-        const btnActMp4  = document.getElementById('btn-act-mp4');
-        const btnActIg   = document.getElementById('btn-act-ig');
-        const btnActTt   = document.getElementById('btn-act-tt');
-        const lightbox   = document.getElementById('neo-lightbox');
-        const lbContent  = document.getElementById('neo-lb-content');
-        const btnCloseLb = document.getElementById('btn-close-lb');
+        const likedSet    = new Set();
+        const tabsWrap    = document.getElementById('neo-tabs');
+        const tabHint     = document.getElementById('neo-tab-hint');
+        const tabHintText = document.getElementById('neo-tab-hint-text');
+        const stageBadge  = document.getElementById('stage-badge');
+        const stageCount  = document.getElementById('stage-counter');
+        const viewport    = document.getElementById('stage-viewport');
+        const mediaSlot   = document.getElementById('stage-media-slot');
+        const thumbStrip  = document.getElementById('neo-thumb-strip');
+        const captionBar  = document.getElementById('stage-caption');
+        const btnPrev     = document.getElementById('btn-prev');
+        const btnNext     = document.getElementById('btn-next');
+        const btnLike     = document.getElementById('btn-like');
+        const btnZoom     = document.getElementById('btn-zoom');
+        const btnActDl    = document.getElementById('btn-act-dl');
+        const btnActMp4   = document.getElementById('btn-act-mp4');
+        const btnActIg    = document.getElementById('btn-act-ig');
+        const btnActTt    = document.getElementById('btn-act-tt');
+        const lightbox    = document.getElementById('neo-lightbox');
+        const lbContent   = document.getElementById('neo-lb-content');
+        const btnCloseLb  = document.getElementById('btn-close-lb');
+
+        function formatHintLabels(keys) {
+          const labels = keys.map((k) => (CAT_META[k] && CAT_META[k].label) || k.toUpperCase());
+          if (labels.length <= 1) return labels[0] || '';
+          if (labels.length === 2) return labels[0] + ' & ' + labels[1];
+          return labels.slice(0, -1).join(', ') + ' & ' + labels[labels.length - 1];
+        }
 
         // Render ulang tab kategori sesuai hasil normalisasi
         if (allCatKeys.length > 0) {
@@ -939,7 +960,12 @@
             btn.addEventListener('click', () => selectCategory(key));
             tabsWrap.appendChild(btn);
           });
-          if (tabHint) tabHint.style.display = allCatKeys.length > 1 ? 'flex' : 'none';
+          if (tabHint) {
+            tabHint.style.display = allCatKeys.length > 1 ? 'flex' : 'none';
+            if (tabHintText) {
+              tabHintText.innerHTML = 'Pilih tab di bawah untuk lihat <strong>' + formatHintLabels(allCatKeys) + '</strong>';
+            }
+          }
         }
 
         let activeCat = allCatKeys[0] || (PB_ITEMS.length > 0 ? PB_ITEMS[0].cat : 'frame');
@@ -1086,6 +1112,7 @@
             lbContent.appendChild(v);
             v.play().catch(() => {});
           } else {
+            // Lightbox selalu menampilkan versi resolusi penuh (orig-true)
             const img = document.createElement('img');
             img.src = item.url;
             lbContent.appendChild(img);
@@ -1115,7 +1142,7 @@
           });
         });
 
-        // FORCE DOWNLOAD FULL RESOLUSI VIA SERVER ENDPOINT (ANTI-PREVIEW & ANTI-CORS)
+        // FORCE DOWNLOAD FULL RESOLUSI VIA SERVER ENDPOINT (SUPPORT JPG 4:4:4 & PNG LOSSLESS)
         function forceDownload(mediaUrl, aliasName, btnEl) {
           const orig = btnEl.innerHTML;
           btnEl.innerHTML = '<i class="ri-loader-4-line spin-anim"></i> MENGUNDUH...';
@@ -1183,17 +1210,24 @@
           }
         }
 
-        // SHARE KE IG STORY / SOSMED VIA SAME-ORIGIN PROXY
+        // SHARE KE IG STORY / SOSMED (AMAN UNTUK FILE FULL-QUALITY > 3.8MB)
         async function shareToSosmed(mediaUrl, aliasName, btnEl) {
           const orig = btnEl.innerHTML;
           btnEl.innerHTML = '<i class="ri-loader-4-line spin-anim"></i> SIAPKAN...';
           btnEl.style.pointerEvents = 'none';
           try {
             const proxyUrl = '/api/download?url=' + encodeURIComponent(mediaUrl) + '&name=' + encodeURIComponent(aliasName);
-            const res = await fetch(proxyUrl);
-            if (!res.ok) throw new Error('HTTP ' + res.status);
+            let res;
+            try {
+              res = await fetch(proxyUrl);
+              if (!res.ok) throw new Error('HTTP ' + res.status);
+            } catch (_) {
+              res = await fetch(mediaUrl);
+              if (!res.ok) throw new Error('HTTP ' + res.status);
+            }
             const blob = await res.blob();
-            const file = new File([blob], aliasName, { type: blob.type });
+            const safeMime = blob.type || (/\.png$/i.test(aliasName) ? 'image/png' : /\.mp4$/i.test(aliasName) ? 'video/mp4' : 'image/jpeg');
+            const file = new File([blob], aliasName, { type: safeMime });
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
               await navigator.share({ files: [file], title: 'Photobinc Moment', text: 'Seru banget foto di Photobinc!' });
             } else if (navigator.share) {

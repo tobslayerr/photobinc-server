@@ -64,6 +64,40 @@ function withImageKitPreview(url, isImage, allowedHostnames = null) {
   return url;
 }
 
+function resolveExtension(filename, rawUrl, fallback = 'jpg') {
+  let ext = path.extname(filename || '').replace('.', '').toLowerCase();
+  if (!ext && rawUrl) {
+    try {
+      ext = path.extname(new URL(rawUrl).pathname).replace('.', '').toLowerCase();
+    } catch (_) {}
+  }
+  if (ext === 'jpeg') ext = 'jpg';
+  return ext || fallback;
+}
+
+function syncAliasExtension(aliasName, contentType) {
+  const ct = String(contentType || '').toLowerCase();
+  let detectedExt = '';
+
+  if (ct.includes('image/png')) detectedExt = 'png';
+  else if (ct.includes('image/webp')) detectedExt = 'webp';
+  else if (ct.includes('image/jpeg') || ct.includes('image/jpg')) detectedExt = 'jpg';
+  else if (ct.includes('image/gif')) detectedExt = 'gif';
+  else if (ct.includes('video/mp4')) detectedExt = 'mp4';
+  else if (ct.includes('video/webm')) detectedExt = 'webm';
+  else if (ct.includes('video/quicktime')) detectedExt = 'mov';
+
+  if (!detectedExt) return aliasName;
+
+  const currentExt = path.extname(aliasName).replace('.', '').toLowerCase();
+  if (currentExt === detectedExt || (currentExt === 'jpeg' && detectedExt === 'jpg')) {
+    return aliasName;
+  }
+
+  const base = currentExt ? aliasName.slice(0, -(currentExt.length + 1)) : aliasName;
+  return `${base}.${detectedExt}`;
+}
+
 async function resolveSessionMedia(req) {
   const oid = String(req.query.oid || '').trim();
   const filesEncoded = String(req.query.f || '').trim();
@@ -124,9 +158,10 @@ async function resolveSessionMedia(req) {
   let isNewspaperHint = Boolean(trx && String(trx.package_name || '').toLowerCase().includes('news'));
 
   for (const clean of cleanFilenames) {
-    const ext = path.extname(clean).replace('.', '').toLowerCase();
     const fullUrl = urlMap.get(clean) || (fallbackEndpoint ? `${fallbackEndpoint}/photobooth/sessions/${clean}` : '');
     if (!fullUrl) continue;
+
+    const ext = resolveExtension(clean, fullUrl, '');
 
     if (
       /^news[-_]/i.test(clean) ||
@@ -150,7 +185,7 @@ async function resolveSessionMedia(req) {
     const origUrl = withImageKitOriginal(fullUrl, allowedHostnames);
 
     if (isLive) urlsLive.push({ file: clean, url: origUrl, ext: ext || 'mp4' });
-    else if (isSlide) urlsGif.push({ file: clean, url: origUrl, ext: 'gif' });
+    else if (isSlide) urlsGif.push({ file: clean, url: origUrl, ext: ext || 'gif' });
     else if (isRaw) urlsRaw.push({ file: clean, url: origUrl, ext: ext || 'jpg' });
     else urlsFrame.push({ file: clean, url: origUrl, ext: ext || 'jpg' });
   }
@@ -180,65 +215,73 @@ exports.renderDownloadPage = async (req, res) => {
     const mediaItems = [];
 
     session.urlsFrame.forEach((item, idx) => {
+      const ext = item.ext || 'jpg';
       mediaItems.push({
         id: `frame_${idx}`,
         cat: 'frame',
         type: 'image',
+        ext,
         filename: item.file,
         badge: idx === 0 ? 'FRAME UTAMA' : `FRAME #${idx + 1}`,
         thumbLabel: `Frame ${idx + 1}`,
         caption: 'Cakep banget! Ini dia hasil foto kolase frame kamu.',
         previewUrl: withImageKitPreview(item.url, true, session.allowedHostnames),
         url: item.url,
-        alias_name: `Photobinc-Frame-${nowTs}-${idx + 1}.jpg`,
+        alias_name: `Photobinc-Frame-${nowTs}-${idx + 1}.${ext}`,
         accent: '#facc15',
       });
     });
 
     session.urlsLive.forEach((item, idx) => {
+      const ext = item.ext || 'mp4';
       mediaItems.push({
         id: `live_${idx}`,
         cat: 'live',
         type: 'video',
+        ext,
         filename: item.file,
         badge: session.urlsLive.length > 1 ? `LIVE PHOTO #${idx + 1}` : 'LIVE PHOTO',
         thumbLabel: `Live ${idx + 1}`,
         caption: 'Momen di balik layar sebelum jepretan! Ala-ala Apple Live Photo.',
         previewUrl: item.url,
         url: item.url,
-        alias_name: `Photobinc-Live-${idx + 1}-${nowTs}.${item.ext}`,
+        alias_name: `Photobinc-Live-${idx + 1}-${nowTs}.${ext}`,
         accent: '#c084fc',
       });
     });
 
     session.urlsGif.forEach((item, idx) => {
+      const ext = item.ext || 'gif';
       mediaItems.push({
         id: `gif_${idx}`,
         cat: 'gif',
         type: 'gif',
+        ext,
         filename: item.file,
         badge: 'ANIMASI GIF',
         thumbLabel: `GIF ${idx + 1}`,
         caption: 'Gerak-gerak gemes! Klik "Video IG" biar tajam saat upload ke IG Story.',
         previewUrl: item.url,
         url: item.url,
-        alias_name: `Photobinc-GIF-${nowTs}-${idx + 1}.gif`,
+        alias_name: `Photobinc-GIF-${nowTs}-${idx + 1}.${ext}`,
         accent: '#f472b6',
       });
     });
 
     session.urlsRaw.forEach((item, idx) => {
+      const ext = item.ext || 'jpg';
       mediaItems.push({
         id: `raw_${idx}`,
         cat: 'raw',
         type: 'image',
+        ext,
         filename: item.file,
         badge: `MENTAHAN ${idx + 1}`,
         thumbLabel: `Pose ${idx + 1}`,
         caption: 'Foto Full HD asli tanpa bingkai buat diedit suka-suka.',
         previewUrl: withImageKitPreview(item.url, true, session.allowedHostnames),
         url: item.url,
-        alias_name: `Photobinc-RAW-${idx + 1}-${nowTs}.jpg`,
+        alias_name: `Photobinc-RAW-${idx + 1}-${nowTs}.${ext}`,
         accent: '#38bdf8',
       });
     });
@@ -293,11 +336,11 @@ exports.renderLiveArPage = async (req, res) => {
   }
 };
 
-// FORCE DOWNLOAD FULL RESOLUSI (ANTI-PREVIEW, ANTI-CORS & SUPPORT MULTI-ACCOUNT IMAGEKIT)
+// FORCE DOWNLOAD FULL RESOLUSI (ANTI-PREVIEW, ANTI-CORS, SUPPORT PNG/JPG 4:4:4 & MULTI-ACCOUNT IMAGEKIT)
 exports.proxyDownload = async (req, res) => {
   try {
     const rawUrl = String(req.query.url || '').trim();
-    const aliasName = String(req.query.name || 'photobinc-media').replace(/[^a-zA-Z0-9._-]/g, '_');
+    const rawAlias = String(req.query.name || 'photobinc-media').replace(/[^a-zA-Z0-9._-]/g, '_');
 
     if (!rawUrl || !(await isAllowedMediaUrl(rawUrl))) {
       return res.status(400).send('URL media tidak valid.');
@@ -306,36 +349,50 @@ exports.proxyDownload = async (req, res) => {
     const { hostnames: allowedHostnames } = await getAllowedImageKitMeta();
     const origUrl = withImageKitOriginal(rawUrl, allowedHostnames);
     const attachmentUrlObj = new URL(origUrl);
-    attachmentUrlObj.searchParams.set('ik-attachment', 'true');
+    if (isImageKitHost(attachmentUrlObj.hostname, allowedHostnames)) {
+      attachmentUrlObj.searchParams.set('ik-attachment', 'true');
+    }
     const directAttachmentUrl = attachmentUrlObj.toString();
 
     let contentLength = 0;
+    const headController = new AbortController();
+    const headTimer = setTimeout(() => headController.abort(), 4000);
     try {
-      const headRes = await fetch(origUrl, { method: 'HEAD' });
+      const headRes = await fetch(origUrl, { method: 'HEAD', signal: headController.signal });
       if (headRes.ok) {
         contentLength = parseInt(headRes.headers.get('content-length') || '0', 10);
       }
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      clearTimeout(headTimer);
+    }
 
     const MAX_VERCEL_BYTES = 3800000; // 3.8 MB aman di bawah limit 4.5 MB Vercel
 
-    // File > 3.8 MB (misal Live Video 15 detik / Frame super besar): langsung redirect ke ImageKit orig-true + attachment
+    // File > 3.8 MB (misal Frame Full-HD 4:4:4 / PNG Lossless / Live Video 15 detik):
+    // langsung redirect ke ImageKit orig-true + ik-attachment agar 100% utuh tanpa terpotong limit Vercel
     if (contentLength > MAX_VERCEL_BYTES) {
+      res.setHeader('Cache-Control', 'no-store');
       return res.redirect(302, directAttachmentUrl);
     }
 
     const upstream = await fetch(origUrl);
     if (!upstream.ok) {
+      res.setHeader('Cache-Control', 'no-store');
       return res.redirect(302, directAttachmentUrl);
     }
 
     const buf = Buffer.from(await upstream.arrayBuffer());
     if (buf.length > MAX_VERCEL_BYTES) {
+      res.setHeader('Cache-Control', 'no-store');
       return res.redirect(302, directAttachmentUrl);
     }
 
-    res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${aliasName}"`);
+    const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
+    const finalAliasName = syncAliasExtension(rawAlias, contentType);
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${finalAliasName}"`);
     res.setHeader('Content-Length', buf.length);
     res.setHeader('Cache-Control', 'no-store');
     return res.send(buf);
